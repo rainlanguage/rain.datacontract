@@ -30,7 +30,7 @@ contract DataContractTest is Test {
         }
     }
 
-    function testRound(bytes memory data_) public {
+    function testRoundFuzz(bytes memory data_) public {
         (bytes memory container_, uint256 outputCursor_) = DataContract.allocate(data_.length);
         uint256 inputCursor_;
         assembly ("memory-safe") {
@@ -46,10 +46,10 @@ contract DataContractTest is Test {
     }
 
     function testRoundOne() public {
-        testRound(hex"01");
+        testRoundFuzz(hex"01");
     }
 
     function testRoundEmpty() public {
-        testRound("");
+        testRoundFuzz("");
     }
 }
