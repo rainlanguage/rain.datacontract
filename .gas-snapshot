@@ -1,0 +1,3 @@
+DataContractTest:testRoundEmpty() (gas: 33657)
+DataContractTest:testRoundFuzz(bytes) (runs: 256, μ: 54714, ~: 49308)
+DataContractTest:testRoundOne() (gas: 34296)
