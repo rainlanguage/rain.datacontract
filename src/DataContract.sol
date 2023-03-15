@@ -1,9 +1,10 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+// SPDX-License-Identifier: CAL
+pragma solidity ^0.8.15;
 
 error WriteError();
+error ReadError();
 
-uint256 constant PREFIX_BYTES_LENGTH = 19;
+uint256 constant PREFIX_BYTES_LENGTH = 15;
 uint256 constant CURSOR_OFFSET = PREFIX_BYTES_LENGTH + 0x20;
 
 library DataContract {
@@ -32,11 +33,14 @@ library DataContract {
             // However note that 00 is also prepended (although docs say append) so there's
             // an additional byte that isn't described above.
             // https://github.com/0xsequence/sstore2/blob/master/contracts/SSTORE2.sol#L25
-            bytes32 prefix_ = bytes32(hex"0000000000000000000000000063000000000000000080600E6000396000F300")
+            bytes32 prefix_ = bytes32(hex"0000000000000000000000000000000000630000000080600E6000396000F300")
                 | bytes32(uint256(uint32(length_ + 1)) << 80);
 
             assembly ("memory-safe") {
-                mstore(sub(cursor_, 0x20), prefix_)
+                let location_ := sub(cursor_, 0x20)
+                // We know the mload at location is zeroed out and we can do an or
+                // because we allocated it as new bytes array ourselves above.
+                mstore(location_, or(mload(location_), prefix_))
             }
 
             return (container_, cursor_);
@@ -55,13 +59,14 @@ library DataContract {
 
     function read(address pointer_) internal view returns (bytes memory) {
         unchecked {
-            uint256 codesize_;
-            assembly ("memory-safe") { codesize_ := extcodesize(pointer_) }
-            uint256 offset_ = PREFIX_BYTES_LENGTH;
-            uint256 length_ = codesize_ - offset_;
-            bytes memory data_ = new bytes(length_);
+            uint256 size_;
+            assembly ("memory-safe") { size_ := extcodesize(pointer_) }
+            if (size_ == 0) revert ReadError();
+            // skip first byte.
+            size_ -= 1;
+            bytes memory data_ = new bytes(size_);
             assembly ("memory-safe") {
-                extcodecopy(pointer_, add(data_, 0x20), offset_, length_)
+                extcodecopy(pointer_, add(data_, 0x20), 1, size_)
             }
             return data_;
         }
