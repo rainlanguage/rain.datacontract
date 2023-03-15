@@ -30,16 +30,32 @@ contract DataContractTest is Test {
         }
     }
 
+    function assertMemoryAlignment() internal {
+        // Check alignment of memory after allocation.
+        uint256 memPtr_;
+        assembly ("memory-safe") {
+            memPtr_ := mload(0x40)
+        }
+        assertEq(memPtr_ % 0x20, 0);
+    }
+
     function testRoundFuzz(bytes memory data_) public {
+        assertMemoryAlignment();
         (uint256 container_, uint256 outputCursor_) = DataContract.allocate(data_.length);
+        assertMemoryAlignment();
+
         uint256 inputCursor_;
         assembly ("memory-safe") {
             inputCursor_ := add(data_, 0x20)
         }
         unsafeCopyBytesTo(inputCursor_, outputCursor_, data_.length);
+        assertMemoryAlignment();
 
         address pointer_ = DataContract.write(container_);
+        assertMemoryAlignment();
+
         bytes memory round_ = DataContract.read(pointer_);
+        assertMemoryAlignment();
 
         assertEq(round_.length, data_.length);
         assertEq(round_, data_);
