@@ -49,22 +49,26 @@ library DataContract {
                 cursor_ := add(container_, cursorOffset_)
 
                 // copy length into the 2 bytes gap in the base prefix
-                let prefix_ := or(
-                    basePrefix_,
-                    shl(
-                        // 10 bytes after the length
-                        80,
-                        and(
-                            // mask the length to 2 bytes
-                            0xFFFF,
-                            add(length_, 1)
+                let prefix_ :=
+                    or(
+                        basePrefix_,
+                        shl(
+                            // 10 bytes after the length
+                            80,
+                            and(
+                                // mask the length to 2 bytes
+                                0xFFFF,
+                                add(length_, 1)
+                            )
                         )
                     )
-                )
 
                 let location_ := sub(cursor_, 0x20)
-                // We know the mload at location is zeroed out and we can do an or
-                // because we allocated it as new bytes array ourselves above.
+                // Because allocated memory is padded to be aligned and the
+                // prefix means the length is always non-zero, it is safe to
+                // simply zero out memory after the length before we OR it with
+                // the prefix.
+                mstore(add(container_, 0x20), 0)
                 mstore(location_, or(mload(location_), prefix_))
             }
         }

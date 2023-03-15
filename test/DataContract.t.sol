@@ -39,7 +39,21 @@ contract DataContractTest is Test {
         assertEq(memPtr_ % 0x20, 0);
     }
 
-    function testRoundFuzz(bytes memory data_) public {
+    /// Solidity manages memory in the following way. There is a “free memory pointer” at position 0x40 in memory.
+    /// If you want to allocate memory, use the memory starting from where this pointer points at and update it.
+    /// **There is no guarantee that the memory has not been used before and thus you cannot assume that its contents are zero bytes.**
+    function copyPastAllocatedMemory(bytes memory data_) internal pure {
+        uint256 outputCursor_;
+        uint256 inputCursor_;
+        assembly ("memory-safe") {
+            inputCursor_ := data_
+            outputCursor_ := mload(0x40)
+        }
+        unsafeCopyBytesTo(inputCursor_, outputCursor_, data_.length);
+    }
+
+    function testRoundFuzz(bytes memory data_, bytes memory garbage_) public {
+        copyPastAllocatedMemory(garbage_);
         assertMemoryAlignment();
         (uint256 container_, uint256 outputCursor_) = DataContract.allocate(data_.length);
         assertMemoryAlignment();
@@ -62,14 +76,19 @@ contract DataContractTest is Test {
     }
 
     function testRoundZero() public {
-        testRoundFuzz(hex"00");
+        testRoundFuzz(hex"00", "");
     }
 
     function testRoundOne() public {
-        testRoundFuzz(hex"01");
+        testRoundFuzz(hex"01", "");
     }
 
     function testRoundEmpty() public {
-        testRoundFuzz("");
+        testRoundFuzz("", "");
+    }
+
+    function testRoundGarbage() public {
+        // Fuzzer picked this up.
+        testRoundFuzz("", hex"020000000000000000000000000000000000000000000000000000000000000000");
     }
 }
