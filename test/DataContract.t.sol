@@ -5,29 +5,18 @@ import "forge-std/Test.sol";
 import "../src/DataContract.sol";
 
 contract DataContractTest is Test {
-        function unsafeCopyBytesTo(
-        uint256 inputCursor_,
-        uint256 outputCursor_,
-        uint256 remaining_
-    ) internal pure {
+    function unsafeCopyBytesTo(uint256 inputCursor_, uint256 outputCursor_, uint256 remaining_) internal pure {
         assembly ("memory-safe") {
-            for {
-
-            } iszero(lt(remaining_, 0x20)) {
+            for {} iszero(lt(remaining_, 0x20)) {
                 remaining_ := sub(remaining_, 0x20)
                 inputCursor_ := add(inputCursor_, 0x20)
                 outputCursor_ := add(outputCursor_, 0x20)
-            } {
-                mstore(outputCursor_, mload(inputCursor_))
-            }
+            } { mstore(outputCursor_, mload(inputCursor_)) }
 
             if gt(remaining_, 0) {
                 // Slither false positive here due to the variable shift of a
                 // constant value to create a mask.
-                let mask_ := shr(
-                    mul(remaining_, 8),
-                    0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
-                )
+                let mask_ := shr(mul(remaining_, 8), 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
                 // preserve existing bytes
                 mstore(
                     outputCursor_,
