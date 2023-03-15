@@ -31,7 +31,7 @@ contract DataContractTest is Test {
     }
 
     function testRoundFuzz(bytes memory data_) public {
-        (bytes memory container_, uint256 outputCursor_) = DataContract.allocate(data_.length);
+        (uint256 container_, uint256 outputCursor_) = DataContract.allocate(data_.length);
         uint256 inputCursor_;
         assembly ("memory-safe") {
             inputCursor_ := add(data_, 0x20)
@@ -43,6 +43,10 @@ contract DataContractTest is Test {
 
         assertEq(round_.length, data_.length);
         assertEq(round_, data_);
+    }
+
+    function testRoundZero() public {
+        testRoundFuzz(hex"00");
     }
 
     function testRoundOne() public {

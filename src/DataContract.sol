@@ -21,38 +21,59 @@ error ReadError();
 // https://github.com/0xsequence/sstore2/blob/master/contracts/SSTORE2.sol#L25
 //
 // Note also typo 0x63XXXXXX which indicates 3 bytes but instead 4 are used as 0x64XXXXXXXX.
-uint256 constant BASE_PREFIX = uint256(bytes32(hex"0000000000000000000000000000000000630000000080600E6000396000F300"));
+//
+// Note also that we don't need 4 bytes to represent the size of a contract as 24kb is the max
+// PUSH2 (0x61) can be used instead of PUSH4 for code length.
+// https://github.com/0xsequence/sstore2/pull/5/files
+uint256 constant BASE_PREFIX = uint256(bytes32(hex"0000000000000000000000000000000000000061000080600C6000396000F300"));
 
-uint256 constant PREFIX_BYTES_LENGTH = 15;
+uint256 constant PREFIX_BYTES_LENGTH = 13;
 uint256 constant CURSOR_OFFSET = PREFIX_BYTES_LENGTH + 0x20;
 
 library DataContract {
-    function allocate(uint256 length_) internal pure returns (bytes memory, uint256) {
+    function allocate(uint256 length_) internal pure returns (uint256 container_, uint256 cursor_) {
         unchecked {
-            bytes memory container_ = new bytes(length_ + PREFIX_BYTES_LENGTH);
-            uint256 cursor_;
+            uint256 cursorOffset_ = CURSOR_OFFSET;
+            uint256 prefixBytesLength_ = PREFIX_BYTES_LENGTH;
+            uint256 basePrefix_ = BASE_PREFIX;
             assembly ("memory-safe") {
-                cursor_ := container_
-            }
-            cursor_ += CURSOR_OFFSET;
+                // allocate output byte array - this could also be done without assembly
+                // by using container_ = new bytes(size)
+                container_ := mload(0x40)
+                // new "memory end" including padding
+                mstore(0x40, add(container_, and(add(add(length_, cursorOffset_), 0x1f), not(0x1f))))
+                // store length in memory
+                mstore(container_, add(length_, prefixBytesLength_))
 
-            uint256 prefix_ = BASE_PREFIX | (uint256(uint32(length_ + 1)) << 80);
+                // cursor is where the caller will write to
+                cursor_ := add(container_, cursorOffset_)
 
-            assembly ("memory-safe") {
+                // copy length into the 2 bytes gap in the base prefix
+                let prefix_ := or(
+                    basePrefix_,
+                    shl(
+                        // 10 bytes after the length
+                        80,
+                        and(
+                            // mask the length to 2 bytes
+                            0xFFFF,
+                            add(length_, 1)
+                        )
+                    )
+                )
+
                 let location_ := sub(cursor_, 0x20)
                 // We know the mload at location is zeroed out and we can do an or
                 // because we allocated it as new bytes array ourselves above.
                 mstore(location_, or(mload(location_), prefix_))
             }
-
-            return (container_, cursor_);
         }
     }
 
-    function write(bytes memory data_) internal returns (address) {
+    function write(uint256 container_) internal returns (address) {
         address pointer_;
         assembly ("memory-safe") {
-            pointer_ := create(0, add(data_, 0x20), mload(data_))
+            pointer_ := create(0, add(container_, 0x20), mload(container_))
         }
         // Zero address means create failed.
         if (pointer_ == address(0)) revert WriteError();
