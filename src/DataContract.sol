@@ -61,6 +61,8 @@ library DataContract {
         unchecked {
             uint256 size_;
             assembly ("memory-safe") { size_ := extcodesize(pointer_) }
+            // size should never be 0 because an empty write still starts
+            // with the zero byte.
             if (size_ == 0) revert ReadError();
             // skip first byte.
             size_ -= 1;
