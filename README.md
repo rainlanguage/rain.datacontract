@@ -10,3 +10,7 @@ https://github.com/0xsequence/sstore2
 It is a little more low level in that it doesn't work on `bytes` from
 Solidity but instead requires the caller to copy memory directy by pointer.
 https://github.com/rainprotocol/sol.lib.bytes can help with that.
+
+## Docs
+
+https://rainprotocol.github.io/sol.lib.datacontract
