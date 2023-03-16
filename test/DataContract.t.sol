@@ -45,7 +45,7 @@ contract DataContractTest is Test {
     function copyPastAllocatedMemory(bytes memory data_) internal pure {
         uint256 outputCursor_;
         uint256 inputCursor_;
-        assembly ("memory-safe") {
+        assembly {
             inputCursor_ := data_
             outputCursor_ := mload(0x40)
         }
@@ -55,7 +55,7 @@ contract DataContractTest is Test {
     function testRoundFuzz(bytes memory data_, bytes memory garbage_) public {
         copyPastAllocatedMemory(garbage_);
         assertMemoryAlignment();
-        (uint256 container_, uint256 outputCursor_) = DataContract.allocate(data_.length);
+        (DataContractMemoryContainer container_, uint256 outputCursor_) = DataContract.newContainer(data_.length);
         assertMemoryAlignment();
 
         uint256 inputCursor_;
@@ -90,5 +90,10 @@ contract DataContractTest is Test {
     function testRoundGarbage() public {
         // Fuzzer picked this up.
         testRoundFuzz("", hex"020000000000000000000000000000000000000000000000000000000000000000");
+    }
+
+    function testErrorBadAddressRead() public {
+        vm.expectRevert(ReadError.selector);
+        DataContract.read(address(5));
     }
 }
