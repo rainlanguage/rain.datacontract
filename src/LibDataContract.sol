@@ -56,7 +56,7 @@ type DataContractMemoryContainer is uint256;
 /// It is a little more low level in that it doesn't work on `bytes` from
 /// Solidity but instead requires the caller to copy memory directy by pointer.
 /// https://github.com/rainprotocol/sol.lib.bytes can help with that.
-library DataContract {
+library LibDataContract {
     /// Prepares a container ready to write exactly `length_` bytes at the
     /// returned `cursor_`. The caller MUST write exactly the number of bytes
     /// that it asks for at the cursor otherwise memory WILL be corrupted.
