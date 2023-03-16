@@ -6,7 +6,6 @@ import "sol.lib.bytes/LibBytes.sol";
 import "../src/DataContract.sol";
 
 contract DataContractTest is QAKitMemoryTest {
-
     using LibBytes for bytes;
 
     function testRoundFuzz(bytes memory data_, bytes memory garbage_) public {
