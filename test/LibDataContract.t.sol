@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: CAL
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.16;
 
 import "qakit.foundry/QAKitMemoryTest.sol";
 import "sol.lib.bytes/LibBytes.sol";
