@@ -46,6 +46,7 @@ contract DataContractTest is QAKitMemoryTest {
 
     function testErrorBadAddressRead() public {
         vm.expectRevert(ReadError.selector);
+        //slither-disable-next-line unused-return
         LibDataContract.read(address(5));
     }
 }
