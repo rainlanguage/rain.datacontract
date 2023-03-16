@@ -4,7 +4,8 @@
 	"vscode": {
 		"extensions": [
 			"JuanBlanco.solidity",
-			"ms-azuretools.vscode-docker"
+			"ms-azuretools.vscode-docker",
+			"bungcip.better-toml"
 		]
 	}
 }
