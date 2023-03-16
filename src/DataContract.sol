@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: CAL
 pragma solidity ^0.8.15;
 
+import "sol.lib.bytes/LibBytes.sol";
+
 /// Thrown if writing the data by creating the contract fails somehow.
 error WriteError();
 
@@ -70,7 +72,7 @@ library DataContract {
     function newContainer(uint256 length_)
         internal
         pure
-        returns (DataContractMemoryContainer container_, uint256 cursor_)
+        returns (DataContractMemoryContainer container_, Cursor cursor_)
     {
         unchecked {
             uint256 prefixBytesLength_ = PREFIX_BYTES_LENGTH;
