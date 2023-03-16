@@ -6,3 +6,6 @@
 [submodule "lib/qakit.foundry"]
 	path = lib/qakit.foundry
 	url = https://github.com/rainprotocol/qakit.foundry
+[submodule "lib/sol.lib.bytes"]
+	path = lib/sol.lib.bytes
+	url = https://github.com/rainprotocol/sol.lib.bytes
