@@ -55,7 +55,6 @@ type DataContractMemoryContainer is uint256;
 /// Solidity but instead requires the caller to copy memory directy by pointer.
 /// https://github.com/rainprotocol/sol.lib.bytes can help with that.
 library DataContract {
-
     /// Prepares a container ready to write exactly `length_` bytes at the
     /// returned `cursor_`. The caller MUST write exactly the number of bytes
     /// that it asks for at the cursor otherwise memory WILL be corrupted.
@@ -135,6 +134,10 @@ library DataContract {
     /// https://docs.soliditylang.org/en/v0.8.17/assembly.html#example
     /// Notable difference is that we skip the first byte when we read as it is
     /// a `0x00` prefix injected by containers on deploy.
+    /// @param pointer_ The address of the data contract to read from. MUST have
+    /// a leading byte that can be safely ignored.
+    /// @return data_ The data read from the data contract. First byte is skipped
+    /// and contract is read completely to the end.
     function read(address pointer_) internal view returns (bytes memory data_) {
         uint256 size_;
         assembly ("memory-safe") {
