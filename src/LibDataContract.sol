@@ -30,6 +30,8 @@ error ReadError();
 ///
 /// Note also that we don't need 4 bytes to represent the size of a contract as
 /// 24kb is the max PUSH2 (0x61) can be used instead of PUSH4 for code length.
+/// This also changes the 0x600e to 0x600c as we've reduced prefix size by 2
+/// relative to reference implementation.
 /// https://github.com/0xsequence/sstore2/pull/5/files
 uint256 constant BASE_PREFIX = 0x61_0000_80_600C_6000_39_6000_F3_00_00000000000000000000000000000000000000;
 
