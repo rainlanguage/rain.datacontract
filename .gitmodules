@@ -4,3 +4,6 @@
 [submodule "lib/sol.lib.memory"]
 	path = lib/sol.lib.memory
 	url = https://github.com/rainprotocol/sol.lib.memory
+[submodule "lib/qakit.foundry"]
+	path = lib/qakit.foundry
+	url = https://github.com/rainprotocol/qakit.foundry
