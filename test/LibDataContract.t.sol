@@ -76,6 +76,28 @@ contract DataContractTest is QAKitMemoryTest {
         LibBytes.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
         address pointer_ = LibDataContract.write(container_);
 
-        assertEq(LibDataContract.read(pointer_), LibDataContract.readSlice(pointer_, 0, uint16(data_.length)));
+        uint256 a_ = gasleft();
+        bytes memory read_ = LibDataContract.read(pointer_);
+        uint256 b_ = gasleft();
+        bytes memory readSlice_ = LibDataContract.readSlice(pointer_, 0, uint16(data_.length));
+        uint256 c_ = gasleft();
+
+        assertEq(read_, readSlice_);
+        // normal read should be cheaper than a slice otherwise what's the point?
+        assertGt(b_ - c_, a_ - b_);
+    }
+
+    function testNewAddressFuzzData(bytes memory data_) public {
+        (DataContractMemoryContainer container_, Cursor outputCursor_) = LibDataContract.newContainer(data_.length);
+        LibBytes.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
+        address pointer0_ = LibDataContract.write(container_);
+        address pointer1_ = LibDataContract.write(container_);
+
+        assertTrue(pointer0_ != pointer1_);
+        assertEq(LibDataContract.read(pointer0_), LibDataContract.read(pointer1_));
+    }
+
+    function testNewAddressFixedData() public {
+        testNewAddressFuzzData(hex"f000");
     }
 }
