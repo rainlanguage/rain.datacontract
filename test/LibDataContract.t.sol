@@ -50,9 +50,7 @@ contract DataContractTest is Test {
         vm.assume(uint256(start_) + uint256(length_) <= data_.length);
 
         bytes memory expected_ = new bytes(length_);
-        LibMemory.unsafeCopyBytesTo(
-            data_.dataPointer().addBytes(start_), expected_.dataPointer(), length_
-        );
+        LibMemory.unsafeCopyBytesTo(data_.dataPointer().addBytes(start_), expected_.dataPointer(), length_);
 
         (DataContractMemoryContainer container_, Pointer pointer_) = LibDataContract.newContainer(data_.length);
         LibMemory.unsafeCopyBytesTo(data_.dataPointer(), pointer_, data_.length);
