@@ -169,18 +169,20 @@ library LibDataContract {
     /// @param pointer_ As per `read`.
     /// @param start_ Starting offset for reads from the data contract.
     /// @param length_ Number of bytes to read.
-    function readSlice(address pointer_, uint256 start_, uint256 length_) internal view returns (bytes memory data_) {
+    function readSlice(address pointer_, uint16 start_, uint16 length_) internal view returns (bytes memory data_) {
         uint256 size_;
         // Checked math here to prevent overflow weirdness.
         // Skip the first byte.
-        uint256 start_ = start_ + 1;
-        uint256 end_ = start_ + length_;
+        uint256 offset_;
+        uint256 end_;
         assembly ("memory-safe") {
+            offset_ := add(start_, 1)
+            end_ := add(offset_, length_)
             // Retrieve the size of the code, this needs assembly.
             size_ := extcodesize(pointer_)
         }
         if (size_ < end_) revert ReadError();
-        assembly {
+        assembly ("memory-safe") {
             // Allocate output byte array - this could also be done without
             // assembly by using data_ = new bytes(size)
             data_ := mload(0x40)
@@ -190,7 +192,7 @@ library LibDataContract {
             // Store length in memory.
             mstore(data_, length_)
             // actually retrieve the code, this needs assembly
-            extcodecopy(pointer_, add(data_, 0x20), start_, length_)
+            extcodecopy(pointer_, add(data_, 0x20), offset_, length_)
         }
     }
 }
