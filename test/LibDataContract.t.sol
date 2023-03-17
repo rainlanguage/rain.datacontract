@@ -92,7 +92,7 @@ contract DataContractTest is Test {
     function testNewAddressFuzzData(bytes memory data_) public {
         (DataContractMemoryContainer container_, Pointer pointer_) = LibDataContract.newContainer(data_.length);
         LibMemory.unsafeCopyBytesTo(data_.dataPointer(), pointer_, data_.length);
-        //slither-disable-next-line variable-names-too-similar
+        //slither-disable-next-line similar-names
         address datacontract0_ = LibDataContract.write(container_);
         address datacontract1_ = LibDataContract.write(container_);
 
