@@ -1,27 +1,28 @@
 // SPDX-License-Identifier: CAL
 pragma solidity ^0.8.16;
 
-import "qakit.foundry/QAKitMemoryTest.sol";
+import "forge-std/Test.sol";
+import "qakit.foundry/LibQAKitMemory.sol";
 import "sol.lib.bytes/LibBytes.sol";
 import "../src/LibDataContract.sol";
 
-contract DataContractTest is QAKitMemoryTest {
+contract DataContractTest is Test {
     using LibBytes for bytes;
 
     function testRoundFuzz(bytes memory data_, bytes memory garbage_) public {
-        copyPastAllocatedMemory(garbage_);
-        assertMemoryAlignment();
+        LibQAKitMemory.copyPastAllocatedMemory(garbage_);
+        assertTrue(LibQAKitMemory.memoryIsAligned());
         (DataContractMemoryContainer container_, Cursor outputCursor_) = LibDataContract.newContainer(data_.length);
-        assertMemoryAlignment();
+        assertTrue(LibQAKitMemory.memoryIsAligned());
 
         LibBytes.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
-        assertMemoryAlignment();
+        assertTrue(LibQAKitMemory.memoryIsAligned());
 
         address pointer_ = LibDataContract.write(container_);
-        assertMemoryAlignment();
+        assertTrue(LibQAKitMemory.memoryIsAligned());
 
         bytes memory round_ = LibDataContract.read(pointer_);
-        assertMemoryAlignment();
+        assertTrue(LibQAKitMemory.memoryIsAligned());
 
         assertEq(round_.length, data_.length);
         assertEq(round_, data_);
