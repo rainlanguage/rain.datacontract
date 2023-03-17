@@ -171,11 +171,11 @@ library LibDataContract {
     /// @param length_ Number of bytes to read.
     function readSlice(address pointer_, uint16 start_, uint16 length_) internal view returns (bytes memory data_) {
         uint256 size_;
-        // Checked math here to prevent overflow weirdness.
-        // Skip the first byte.
+        // uint256 offset and end avoids overflow issues from uint16.
         uint256 offset_;
         uint256 end_;
         assembly ("memory-safe") {
+            // Skip the first byte.
             offset_ := add(start_, 1)
             end_ := add(offset_, length_)
             // Retrieve the size of the code, this needs assembly.
