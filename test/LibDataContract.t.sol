@@ -49,4 +49,21 @@ contract DataContractTest is QAKitMemoryTest {
         //slither-disable-next-line unused-return
         LibDataContract.read(address(5));
     }
+
+    function testRoundSlice(bytes memory data_, uint256 start_, uint256 length_) public {
+        vm.assume(start_ + length_ < data_.length);
+
+        // bytes memory expected_ = new bytes(length_);
+        // LibBytes.unsafeCopyBytesTo(Cursor.wrap(Cursor.unwrap(data_.cursor()) + start_), expected_.cursor(), length_);
+
+        // (DataContractMemoryContainer container_, Cursor outputCursor_) = LibDataContract.newContainer(data_.length);
+
+        // LibBytes.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
+
+        // address pointer_ = LibDataContract.write(container_);
+
+        // bytes memory slice_ = LibDataContract.readSlice(pointer_, start_, length_);
+
+        // assertEq(expected_, slice_);
+    }
 }

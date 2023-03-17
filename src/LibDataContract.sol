@@ -166,35 +166,31 @@ library LibDataContract {
 
     /// Hybrid of address-only read, SSTORE2 read and Solidity docs.
     /// Unlike SSTORE2, reading past the end of the data contract WILL REVERT.
-    /// @param pointer_ As per read.
+    /// @param pointer_ As per `read`.
     /// @param start_ Starting offset for reads from the data contract.
     /// @param length_ Number of bytes to read.
-    function read(address pointer_, uint256 start_, uint256 length_) internal view returns (bytes memory data_) {
+    function readSlice(address pointer_, uint256 start_, uint256 length_) internal view returns (bytes memory data_) {
         uint256 size_;
-        uint256 end_;
+        // Checked math here to prevent overflow weirdness.
+        // Skip the first byte.
+        uint256 start_ = start_ + 1;
+        uint256 end_ = start_ + length_;
         assembly ("memory-safe") {
-            // Skip the first byte.
-            start_ := add(start_, 1)
-            end_ := add(start_, length_)
-
             // Retrieve the size of the code, this needs assembly.
             size_ := extcodesize(pointer_)
         }
         if (size_ < end_) revert ReadError();
-
-        unchecked {
-            assembly {
-                // Allocate output byte array - this could also be done without
-                // assembly by using data_ = new bytes(size)
-                data_ := mload(0x40)
-                // New "memory end" including padding.
-                // Compiler will optimise away the double constant addition.
-                mstore(0x40, add(data_, and(add(add(length_, 0x20), 0x1f), not(0x1f))))
-                // Store length in memory.
-                mstore(data_, length_)
-                // actually retrieve the code, this needs assembly
-                extcodecopy(pointer_, add(data_, 0x20), start_, length_)
-            }
+        assembly {
+            // Allocate output byte array - this could also be done without
+            // assembly by using data_ = new bytes(size)
+            data_ := mload(0x40)
+            // New "memory end" including padding.
+            // Compiler will optimise away the double constant addition.
+            mstore(0x40, add(data_, and(add(add(length_, 0x20), 0x1f), not(0x1f))))
+            // Store length in memory.
+            mstore(data_, length_)
+            // actually retrieve the code, this needs assembly
+            extcodecopy(pointer_, add(data_, 0x20), start_, length_)
         }
     }
 }
