@@ -27,27 +27,21 @@ contract DataContractTest is QAKitMemoryTest {
         assertEq(round_, data_);
     }
 
-    function testRoundZero() public {
-        testRoundFuzz(hex"00", "");
-    }
-
-    function testRoundOne() public {
-        testRoundFuzz(hex"01", "");
-    }
-
-    function testRoundEmpty() public {
-        testRoundFuzz("", "");
-    }
-
-    function testRoundGarbage() public {
-        // Fuzzer picked this up.
-        testRoundFuzz("", hex"020000000000000000000000000000000000000000000000000000000000000000");
-    }
-
-    function testErrorBadAddressRead() public {
+    function testErrorBadAddressRead(address a_) public {
         vm.expectRevert(ReadError.selector);
         //slither-disable-next-line unused-return
-        LibDataContract.read(address(5));
+        LibDataContract.read(
+            address(
+                uint160(
+                    uint256(
+                        // Hash the input because the fuzzer passes in addresses that it has
+                        // seen elsewhere in the test suite, which can include previously
+                        // deployed contracts.
+                        keccak256(abi.encodePacked(a_))
+                    )
+                )
+            )
+        );
     }
 
     function testRoundSlice(bytes memory data_, uint16 start_, uint16 length_) public {
@@ -75,5 +69,13 @@ contract DataContractTest is QAKitMemoryTest {
         vm.expectRevert(ReadError.selector);
         //slither-disable-next-line unused-return
         LibDataContract.readSlice(pointer_, start_, length_);
+    }
+
+    function testSameReads(bytes memory data_) public {
+        (DataContractMemoryContainer container_, Cursor outputCursor_) = LibDataContract.newContainer(data_.length);
+        LibBytes.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
+        address pointer_ = LibDataContract.write(container_);
+
+        assertEq(LibDataContract.read(pointer_), LibDataContract.readSlice(pointer_, 0, uint16(data_.length)));
     }
 }
