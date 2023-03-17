@@ -8,6 +8,7 @@ import "../src/LibDataContract.sol";
 
 contract DataContractTest is Test {
     using LibMemory for bytes;
+    using LibMemory for Pointer;
 
     function testRoundFuzz(bytes memory data_, bytes memory garbage_) public {
         LibQAKitMemory.copyPastAllocatedMemory(garbage_);
@@ -50,7 +51,7 @@ contract DataContractTest is Test {
 
         bytes memory expected_ = new bytes(length_);
         LibMemory.unsafeCopyBytesTo(
-            Pointer.wrap(Pointer.unwrap(data_.dataPointer()) + start_), expected_.dataPointer(), length_
+            data_.dataPointer().addBytes(start_), expected_.dataPointer(), length_
         );
 
         (DataContractMemoryContainer container_, Pointer pointer_) = LibDataContract.newContainer(data_.length);
@@ -102,5 +103,18 @@ contract DataContractTest is Test {
 
     function testNewAddressFixedData() public {
         testNewAddressFuzzData(hex"f000");
+    }
+
+    function testZeroPrefix(bytes memory data_) public {
+        (DataContractMemoryContainer container_, Pointer pointer_) = LibDataContract.newContainer(data_.length);
+        LibMemory.unsafeCopyBytesTo(data_.dataPointer(), pointer_, data_.length);
+        address datacontract_ = LibDataContract.write(container_);
+        uint256 firstByte_;
+        assembly ("memory-safe") {
+            // copy to scratch.
+            extcodecopy(datacontract_, 0, 0, 1)
+            firstByte_ := mload(0)
+        }
+        assertEq(firstByte_, 0);
     }
 }
