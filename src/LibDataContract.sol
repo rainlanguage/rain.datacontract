@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CAL
 pragma solidity ^0.8.16;
 
-import "sol.lib.bytes/LibBytes.sol";
+import "sol.lib.memory/LibMemory.sol";
 
 /// Thrown if writing the data by creating the contract fails somehow.
 error WriteError();
@@ -42,6 +42,7 @@ uint256 constant PREFIX_BYTES_LENGTH = 13;
 /// A container is a region of memory that is directly deployable with `create`,
 /// without length prefixes or other Solidity type trappings. Where the length is
 /// needed, such as in `write` it can be read as bytes `[1,2]` from the prefix.
+/// This is just a pointer but given a new type to help avoid mistakes.
 type DataContractMemoryContainer is uint256;
 
 /// @title DataContract
@@ -60,21 +61,22 @@ type DataContractMemoryContainer is uint256;
 /// https://github.com/rainprotocol/sol.lib.bytes can help with that.
 library LibDataContract {
     /// Prepares a container ready to write exactly `length_` bytes at the
-    /// returned `cursor_`. The caller MUST write exactly the number of bytes
-    /// that it asks for at the cursor otherwise memory WILL be corrupted.
+    /// returned `pointer_`. The caller MUST write exactly the number of bytes
+    /// that it asks for at the pointer otherwise memory WILL be corrupted.
     /// @param length_ Caller specifies the number of bytes to allocate for the
     /// data it wants to write. The actual size of the container in memory will
     /// be larger than this due to the contract creation prefix and the padding
     /// potentially required to align the memory allocation.
     /// @return container_ The pointer to the start of the container that can be
     /// deployed as an onchain contract. Caller can pass this back to `write` to
-    /// have the data contract deployed (after it copies its data to the cursor).
-    /// @return cursor_ The caller can copy its data at the cursor without any
+    /// have the data contract deployed
+    /// (after it copies its data to the pointer).
+    /// @return pointer_ The caller can copy its data at the pointer without any
     /// additional allocations or Solidity type wrangling.
     function newContainer(uint256 length_)
         internal
         pure
-        returns (DataContractMemoryContainer container_, Cursor cursor_)
+        returns (DataContractMemoryContainer container_, Pointer pointer_)
     {
         unchecked {
             uint256 prefixBytesLength_ = PREFIX_BYTES_LENGTH;
@@ -85,8 +87,8 @@ library LibDataContract {
                 container_ := mload(0x40)
                 // new "memory end" including padding
                 mstore(0x40, add(container_, and(add(add(length_, prefixBytesLength_), 0x1f), not(0x1f))))
-                // cursor is where the caller will write data to
-                cursor_ := add(container_, prefixBytesLength_)
+                // pointer is where the caller will write data to
+                pointer_ := add(container_, prefixBytesLength_)
 
                 // copy length into the 2 bytes gap in the base prefix
                 let prefix_ :=
