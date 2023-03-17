@@ -3,7 +3,7 @@ pragma solidity ^0.8.16;
 
 import "forge-std/Test.sol";
 import "qakit.foundry/LibQAKitMemory.sol";
-import "sol.lib.bytes/LibBytes.sol";
+import "sol.lib.memory/LibMemory.sol";
 import "../src/LibDataContract.sol";
 
 contract DataContractTest is Test {
@@ -49,10 +49,10 @@ contract DataContractTest is Test {
         vm.assume(uint256(start_) + uint256(length_) <= data_.length);
 
         bytes memory expected_ = new bytes(length_);
-        LibBytes.unsafeCopyBytesTo(Cursor.wrap(Cursor.unwrap(data_.cursor()) + start_), expected_.cursor(), length_);
+        LibMemory.unsafeCopyBytesTo(Cursor.wrap(Cursor.unwrap(data_.cursor()) + start_), expected_.cursor(), length_);
 
         (DataContractMemoryContainer container_, Cursor outputCursor_) = LibDataContract.newContainer(data_.length);
-        LibBytes.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
+        LibMemory.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
         address pointer_ = LibDataContract.write(container_);
 
         bytes memory slice_ = LibDataContract.readSlice(pointer_, start_, length_);
@@ -64,7 +64,7 @@ contract DataContractTest is Test {
         vm.assume(uint256(start_) + uint256(length_) > data_.length);
 
         (DataContractMemoryContainer container_, Cursor outputCursor_) = LibDataContract.newContainer(data_.length);
-        LibBytes.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
+        LibMemory.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
         address pointer_ = LibDataContract.write(container_);
 
         vm.expectRevert(ReadError.selector);
@@ -74,7 +74,7 @@ contract DataContractTest is Test {
 
     function testSameReads(bytes memory data_) public {
         (DataContractMemoryContainer container_, Cursor outputCursor_) = LibDataContract.newContainer(data_.length);
-        LibBytes.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
+        LibMemory.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
         address pointer_ = LibDataContract.write(container_);
 
         uint256 a_ = gasleft();
@@ -90,7 +90,7 @@ contract DataContractTest is Test {
 
     function testNewAddressFuzzData(bytes memory data_) public {
         (DataContractMemoryContainer container_, Cursor outputCursor_) = LibDataContract.newContainer(data_.length);
-        LibBytes.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
+        LibMemory.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
         address pointer0_ = LibDataContract.write(container_);
         address pointer1_ = LibDataContract.write(container_);
 
