@@ -51,19 +51,29 @@ contract DataContractTest is QAKitMemoryTest {
     }
 
     function testRoundSlice(bytes memory data_, uint16 start_, uint16 length_) public {
-        vm.assume(uint256(start_) + uint256(length_) < data_.length);
+        vm.assume(uint256(start_) + uint256(length_) <= data_.length);
 
         bytes memory expected_ = new bytes(length_);
         LibBytes.unsafeCopyBytesTo(Cursor.wrap(Cursor.unwrap(data_.cursor()) + start_), expected_.cursor(), length_);
 
         (DataContractMemoryContainer container_, Cursor outputCursor_) = LibDataContract.newContainer(data_.length);
-
         LibBytes.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
-
         address pointer_ = LibDataContract.write(container_);
 
         bytes memory slice_ = LibDataContract.readSlice(pointer_, start_, length_);
 
         assertEq(expected_, slice_);
+    }
+
+    function testRoundSliceError(bytes memory data_, uint16 start_, uint16 length_) public {
+        vm.assume(uint256(start_) + uint256(length_) > data_.length);
+
+        (DataContractMemoryContainer container_, Cursor outputCursor_) = LibDataContract.newContainer(data_.length);
+        LibBytes.unsafeCopyBytesTo(data_.cursor(), outputCursor_, data_.length);
+        address pointer_ = LibDataContract.write(container_);
+
+        vm.expectRevert(ReadError.selector);
+        //slither-disable-next-line unused-return
+        LibDataContract.readSlice(pointer_, start_, length_);
     }
 }
