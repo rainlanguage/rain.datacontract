@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CAL
 pragma solidity ^0.8.16;
 
-import "sol.lib.memory/LibMemory.sol";
+import "sol.lib.memory/LibPointer.sol";
 
 /// Thrown if writing the data by creating the contract fails somehow.
 error WriteError();
