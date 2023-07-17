@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: CAL
 pragma solidity =0.8.18;
 
-import "forge-std/Test.sol";
-import "rain.solmem/lib/LibMemCpy.sol";
-import "rain.solmem/lib/LibMemory.sol";
-import "rain.solmem/lib/LibBytes.sol";
-import "rain.solmem/lib/LibPointer.sol";
+import "../../lib/forge-std/src/Test.sol";
+import "../../lib/rain.solmem/src/lib/LibMemCpy.sol";
+import "../../lib/rain.solmem/src/lib/LibMemory.sol";
+import "../../lib/rain.solmem/src/lib/LibBytes.sol";
+import "../../lib/rain.solmem/src/lib/LibPointer.sol";
 
-import "src/lib/LibDataContract.sol";
+import "../../src/lib/LibDataContract.sol";
 
 /// @title DataContractTest
 /// Tests for serializing and deserializing data to and from an onchain data
