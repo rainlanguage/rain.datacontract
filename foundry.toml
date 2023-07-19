@@ -11,8 +11,9 @@ optimizer_runs = 100000
 
 # no auto remappings
 # https://github.com/foundry-rs/foundry/issues/3440#issuecomment-1637471928
-auto_detect_remappings = false
-remappings = ["ds-test/=lib/forge-std/lib/ds-test/src/"]
+# https://github.com/foundry-rs/foundry/issues/3440
+# auto_detect_remappings = false
+# remappings = ["ds-test/=lib/forge-std/lib/ds-test/src/"]
 
 [fuzz]
 runs = 1024
