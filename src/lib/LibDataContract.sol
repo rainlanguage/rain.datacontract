@@ -2,12 +2,7 @@
 pragma solidity ^0.8.25;
 
 import {LibPointer, Pointer} from "../../lib/rain.solmem/src/lib/LibPointer.sol";
-
-/// Thrown if writing the data by creating the contract fails somehow.
-error WriteError();
-
-/// Thrown if reading a zero length address.
-error ReadError();
+import {WriteError, ReadError} from "../error/ErrDataContract.sol";
 
 /// @dev SSTORE2 Verbatim reference
 /// https://github.com/0xsequence/sstore2/blob/master/contracts/utils/Bytecode.sol#L15
