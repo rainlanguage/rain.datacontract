@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CAL
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.25;
 
-import "../../lib/rain.solmem/src/lib/LibPointer.sol";
+import {LibPointer, Pointer} from "../../lib/rain.solmem/src/lib/LibPointer.sol";
 
 /// Thrown if writing the data by creating the contract fails somehow.
 error WriteError();
