@@ -6,7 +6,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        task: [rainix-sol-test, rainix-sol-static, rainix-sol-artifacts]
+        task: [rainix-sol-test, rainix-sol-static]
       fail-fast: false
     runs-on: ${{ matrix.os }}
     env:
