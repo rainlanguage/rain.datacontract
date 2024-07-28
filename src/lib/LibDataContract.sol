@@ -130,6 +130,9 @@ library LibDataContract {
         return pointer;
     }
 
+    /// Same as `write` but deploys to a deterministic address that does not
+    /// rely on the address nor nonce of the caller. This means that the address
+    /// will be the same on all networks and for all callers for the same data.
     /// https://github.com/Zoltu/deterministic-deployment-proxy
     function writeZoltu(DataContractMemoryContainer container) internal returns (address deployedAddress) {
         uint256 prefixLength = PREFIX_BYTES_LENGTH;
