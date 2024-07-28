@@ -155,4 +155,27 @@ contract DataContractTest is Test {
         }
         assertEq(firstByte, 0);
     }
+
+    /// Check that if we deploy with zoltu we get the same address on different
+    /// networks.
+    function testZoltu() public {
+        bytes memory data = bytes("zoltu");
+
+        (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
+        LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
+
+        vm.createSelectFork(vm.envString("ETH_RPC_URL"));
+
+        address datacontractAlpha = LibDataContract.writeZoltu(container);
+
+        assertEq(datacontractAlpha, 0x7B5220368D7460A84bCFCCB0616f77E61e5302e2);
+        assertEq(keccak256(data), keccak256(LibDataContract.read(datacontractAlpha)));
+
+        vm.createSelectFork(vm.envString("AVAX_RPC_URL"));
+
+        address datacontractBeta = LibDataContract.writeZoltu(container);
+
+        assertEq(datacontractBeta, 0x7B5220368D7460A84bCFCCB0616f77E61e5302e2);
+        assertEq(keccak256(data), keccak256(LibDataContract.read(datacontractBeta)));
+    }
 }
