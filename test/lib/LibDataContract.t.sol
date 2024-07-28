@@ -164,14 +164,14 @@ contract DataContractTest is Test {
         (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
         LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
 
-        vm.createSelectFork(vm.envString("ETH_RPC_URL"));
+        vm.createSelectFork(vm.envString("CI_FORK_ETH_RPC_URL"));
 
         address datacontractAlpha = LibDataContract.writeZoltu(container);
 
         assertEq(datacontractAlpha, 0x7B5220368D7460A84bCFCCB0616f77E61e5302e2);
         assertEq(keccak256(data), keccak256(LibDataContract.read(datacontractAlpha)));
 
-        vm.createSelectFork(vm.envString("AVAX_RPC_URL"));
+        vm.createSelectFork(vm.envString("CI_FORK_AVALANCHE_RPC_URL"));
 
         address datacontractBeta = LibDataContract.writeZoltu(container);
 
