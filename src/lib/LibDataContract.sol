@@ -130,6 +130,34 @@ library LibDataContract {
         return pointer;
     }
 
+    /// Same as `write` but deploys to a deterministic address that does not
+    /// rely on the address nor nonce of the caller. This means that the address
+    /// will be the same on all networks and for all callers for the same data.
+    /// https://github.com/Zoltu/deterministic-deployment-proxy
+    function writeZoltu(DataContractMemoryContainer container) internal returns (address deployedAddress) {
+        uint256 prefixLength = PREFIX_BYTES_LENGTH;
+        bool success;
+        assembly ("memory-safe") {
+            mstore(0, 0)
+            success :=
+                call(
+                    gas(),
+                    0x7A0D94F55792C434d74a40883C6ed8545E406D12,
+                    0,
+                    container,
+                    add(
+                        prefixLength,
+                        // Read length out of prefix.
+                        and(0xFFFF, shr(232, mload(container)))
+                    ),
+                    12,
+                    20
+                )
+            deployedAddress := mload(0)
+        }
+        if (!success) revert WriteError();
+    }
+
     /// Reads data back from a previously deployed container.
     /// Almost verbatim Solidity docs.
     /// https://docs.soliditylang.org/en/v0.8.17/assembly.html#example
