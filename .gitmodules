@@ -3,4 +3,4 @@
 	url = https://github.com/foundry-rs/forge-std
 [submodule "lib/rain.solmem"]
 	path = lib/rain.solmem
-	url = https://github.com/rainprotocol/rain.solmem
+	url = https://github.com/rainlanguage/rain.solmem

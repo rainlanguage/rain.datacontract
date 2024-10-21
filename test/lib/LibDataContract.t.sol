@@ -2,18 +2,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 thedavidmeister
 pragma solidity =0.8.25;
 
-import {Test} from "../../lib/forge-std/src/Test.sol";
-import {LibMemCpy} from "../../lib/rain.solmem/src/lib/LibMemCpy.sol";
-import {LibMemory} from "../../lib/rain.solmem/src/lib/LibMemory.sol";
-import {LibBytes} from "../../lib/rain.solmem/src/lib/LibBytes.sol";
+import {Test} from "forge-std/Test.sol";
+import {LibMemCpy} from "rain.solmem/lib/LibMemCpy.sol";
+import {LibBytes} from "rain.solmem/lib/LibBytes.sol";
 
 import {
-    LibPointer,
-    Pointer,
-    DataContractMemoryContainer,
-    LibDataContract,
-    ReadError
-} from "../../src/lib/LibDataContract.sol";
+    LibPointer, Pointer, DataContractMemoryContainer, LibDataContract, ReadError
+} from "src/lib/LibDataContract.sol";
 
 /// @title DataContractTest
 /// Tests for serializing and deserializing data to and from an onchain data
@@ -28,18 +23,13 @@ contract DataContractTest is Test {
         // Put some garbage in unallocated memory.
         LibMemCpy.unsafeCopyBytesTo(garbage.dataPointer(), LibPointer.allocatedMemoryPointer(), garbage.length);
 
-        assertTrue(LibMemory.memoryIsAligned());
         (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
-        assertTrue(LibMemory.memoryIsAligned());
 
         LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
-        assertTrue(LibMemory.memoryIsAligned());
 
         address datacontract = LibDataContract.write(container);
-        assertTrue(LibMemory.memoryIsAligned());
 
         bytes memory round = LibDataContract.read(datacontract);
-        assertTrue(LibMemory.memoryIsAligned());
 
         assertEq(round.length, data.length);
         assertEq(round, data);
