@@ -17,6 +17,18 @@ contract DataContractTest is Test {
     using LibBytes for bytes;
     using LibPointer for Pointer;
 
+    function readExternal(address datacontract) external view returns (bytes memory) {
+        return LibDataContract.read(datacontract);
+    }
+
+    function readSliceExternal(address datacontract, uint16 start, uint16 length)
+        external
+        view
+        returns (bytes memory)
+    {
+        return LibDataContract.readSlice(datacontract, start, length);
+    }
+
     /// Writing any data to a contract then reading it back without corrupting
     /// memory or the data itself.
     function testRoundFuzz(bytes memory data, bytes memory garbage) public {
@@ -39,8 +51,7 @@ contract DataContractTest is Test {
     /// a ReadError.
     function testErrorBadAddressRead(address a) public {
         vm.expectRevert(ReadError.selector);
-        //slither-disable-next-line unused-return
-        LibDataContract.read(
+        (bytes memory read) = this.readExternal(
             address(
                 uint160(
                     uint256(
@@ -52,6 +63,7 @@ contract DataContractTest is Test {
                 )
             )
         );
+        (read);
     }
 
     /// Should be possible to read only a slice of the data.
@@ -76,11 +88,11 @@ contract DataContractTest is Test {
 
         (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
         LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
-        address datacontract_ = LibDataContract.write(container);
+        address datacontract = LibDataContract.write(container);
 
         vm.expectRevert(ReadError.selector);
-        //slither-disable-next-line unused-return
-        LibDataContract.readSlice(datacontract_, start, length);
+        (bytes memory slice) = this.readSliceExternal(datacontract, start, length);
+        (slice);
     }
 
     /// Reading a slice over the whole contract gives the same result as reading
