@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity ^0.8.25;
 
+// forge-lint: disable-next-line(unused-import)
 import {LibPointer, Pointer} from "../../lib/rain.solmem/src/lib/LibPointer.sol";
 import {WriteError, ReadError} from "../error/ErrDataContract.sol";
 

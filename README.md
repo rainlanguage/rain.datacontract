@@ -15,6 +15,11 @@ It is a little more low level in that it doesn't work on `bytes` from
 Solidity but instead requires the caller to copy memory directy by pointer.
 https://github.com/rainprotocol/sol.lib.bytes can help with that.
 
+Also included is a Zoltu deterministic deployment proxy contract compatible
+deployment for data contracts, so that the data can be found at the same address
+across multiple networks.
+https://github.com/Zoltu/deterministic-deployment-proxy
+
 ## Dev stuff
 
 ### Local environment & CI
