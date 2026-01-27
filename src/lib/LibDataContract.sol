@@ -6,7 +6,7 @@ pragma solidity ^0.8.25;
 import {LibPointer, Pointer} from "../../lib/rain.solmem/src/lib/LibPointer.sol";
 import {WriteError, ReadError} from "../error/ErrDataContract.sol";
 
-/// @dev SSTORE2 Verbatim reference
+/// @dev SSTORE2 Verbatim original reference
 /// https://github.com/0xsequence/sstore2/blob/master/contracts/utils/Bytecode.sol#L15
 ///
 /// 0x00    0x63         0x63XXXXXX  PUSH4 _code.length  size
@@ -17,6 +17,9 @@ import {WriteError, ReadError} from "../error/ErrDataContract.sol";
 /// 0x05    0x60         0x6000      PUSH1 00            0 size
 /// 0x06    0xf3         0xf3        RETURN
 /// <CODE>
+///
+/// The assembly below is a modified version of this original reference according
+/// to the notes following.
 ///
 /// However note that 00 is also prepended (although docs say append) so there's
 /// an additional byte that isn't described above.
@@ -30,6 +33,17 @@ import {WriteError, ReadError} from "../error/ErrDataContract.sol";
 /// This also changes the 0x600e to 0x600c as we've reduced prefix size by 2
 /// relative to reference implementation.
 /// https://github.com/0xsequence/sstore2/pull/5/files
+///
+/// The final modified bytecode is therefore:
+/// 0x61         0x61XXXX    PUSH2 _code.length  size
+/// 0x80         0x80        DUP1                size size
+/// 0x60         0x600c      PUSH1 12            12 size size
+/// 0x60         0x6000      PUSH1 00            0 12 size size
+/// 0x39         0x39        CODECOPY            size
+/// 0x60         0x6000      PUSH1 00            0 size
+/// 0xf3         0xf3        RETURN
+/// 0x00         0x00        <extra byte prepended by SSTORE2>
+/// <CODE>
 uint256 constant BASE_PREFIX = 0x61_0000_80_600C_6000_39_6000_F3_00_00000000000000000000000000000000000000;
 
 /// @dev Length of the prefix that converts in memory data to a deployable
