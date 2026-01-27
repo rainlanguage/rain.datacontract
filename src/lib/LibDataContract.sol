@@ -140,7 +140,9 @@ library LibDataContract {
                 add(
                     prefixLength,
                     // Read length out of prefix.
-                    and(0xFFFF, shr(232, mload(container)))
+                    // Sub 1 as length stored is +1 to include the 0x00 prefix
+                    // byte.
+                    sub(and(0xFFFF, shr(232, mload(container))), 1)
                 )
             )
         }
@@ -167,7 +169,9 @@ library LibDataContract {
                 add(
                     prefixLength,
                     // Read length out of prefix.
-                    and(0xFFFF, shr(232, mload(container)))
+                    // Sub 1 as length stored is +1 to include the 0x00 prefix
+                    // byte.
+                    sub(and(0xFFFF, shr(232, mload(container))), 1)
                 ),
                 12,
                 20

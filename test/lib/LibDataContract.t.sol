@@ -172,14 +172,14 @@ contract DataContractTest is Test {
 
         address datacontractAlpha = LibDataContract.writeZoltu(container);
 
-        assertEq(datacontractAlpha, 0x7B5220368D7460A84bCFCCB0616f77E61e5302e2);
+        assertEq(datacontractAlpha, 0x1Cf89F16784b780E549105B04e80D5196E13C4Af);
         assertEq(keccak256(data), keccak256(LibDataContract.read(datacontractAlpha)));
 
         vm.createSelectFork(vm.envString("CI_FORK_AVALANCHE_RPC_URL"));
 
         address datacontractBeta = LibDataContract.writeZoltu(container);
 
-        assertEq(datacontractBeta, 0x7B5220368D7460A84bCFCCB0616f77E61e5302e2);
+        assertEq(datacontractBeta, 0x1Cf89F16784b780E549105B04e80D5196E13C4Af);
         assertEq(keccak256(data), keccak256(LibDataContract.read(datacontractBeta)));
     }
 
