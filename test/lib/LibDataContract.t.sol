@@ -12,7 +12,8 @@ import {
     DataContractMemoryContainer,
     LibDataContract,
     ReadError,
-    WriteError
+    WriteError,
+    ZOLTU_PROXY_ADDRESS
 } from "src/lib/LibDataContract.sol";
 
 /// @title DataContractTest
@@ -28,6 +29,12 @@ contract DataContractTest is Test {
 
     function readSliceExternal(address datacontract, uint16 start, uint16 length) external view returns (bytes memory) {
         return LibDataContract.readSlice(datacontract, start, length);
+    }
+
+    function writeZoltuExternal(bytes memory data) external returns (address) {
+        (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
+        LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
+        return LibDataContract.writeZoltu(container);
     }
 
     /// Writing any data to a contract then reading it back without corrupting
@@ -186,10 +193,20 @@ contract DataContractTest is Test {
     /// Check that if we use zoltu without the zoltu proxy existing that we
     /// revert.
     function testZoltuNoZoltu(bytes memory data) external {
-        (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
-        LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
-
+        vm.assume(ZOLTU_PROXY_ADDRESS.code.length == 0);
         vm.expectRevert(abi.encodeWithSelector(WriteError.selector));
-        LibDataContract.writeZoltu(container);
+        this.writeZoltuExternal(data);
+    }
+
+    /// Check that if zoltu exists but returns not success we revert.
+    function testZoltuBadZoltu(bytes memory data) external {
+        vm.assume(ZOLTU_PROXY_ADDRESS.code.length == 0);
+        vm.etch(
+            ZOLTU_PROXY_ADDRESS,
+            // revert opcode.
+            hex"fd"
+        );
+        vm.expectRevert(abi.encodeWithSelector(WriteError.selector));
+        this.writeZoltuExternal(data);
     }
 }

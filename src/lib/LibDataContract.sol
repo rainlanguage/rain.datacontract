@@ -178,7 +178,7 @@ library LibDataContract {
             )
             deployedAddress := mload(0)
         }
-        if (deployedAddress == address(0)) revert WriteError();
+        if (deployedAddress == address(0) || !success) revert WriteError();
     }
 
     /// Reads data back from a previously deployed container.
