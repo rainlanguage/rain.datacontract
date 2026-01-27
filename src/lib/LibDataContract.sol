@@ -116,16 +116,15 @@ library LibDataContract {
         address pointer;
         uint256 prefixLength = PREFIX_BYTES_LENGTH;
         assembly ("memory-safe") {
-            pointer :=
-                create(
-                    0,
-                    container,
-                    add(
-                        prefixLength,
-                        // Read length out of prefix.
-                        and(0xFFFF, shr(232, mload(container)))
-                    )
+            pointer := create(
+                0,
+                container,
+                add(
+                    prefixLength,
+                    // Read length out of prefix.
+                    and(0xFFFF, shr(232, mload(container)))
                 )
+            )
         }
         // Zero address means create failed.
         if (pointer == address(0)) revert WriteError();
@@ -141,23 +140,22 @@ library LibDataContract {
         bool success;
         assembly ("memory-safe") {
             mstore(0, 0)
-            success :=
-                call(
-                    gas(),
-                    0x7A0D94F55792C434d74a40883C6ed8545E406D12,
-                    0,
-                    container,
-                    add(
-                        prefixLength,
-                        // Read length out of prefix.
-                        and(0xFFFF, shr(232, mload(container)))
-                    ),
-                    12,
-                    20
-                )
+            success := call(
+                gas(),
+                0x7A0D94F55792C434d74a40883C6ed8545E406D12,
+                0,
+                container,
+                add(
+                    prefixLength,
+                    // Read length out of prefix.
+                    and(0xFFFF, shr(232, mload(container)))
+                ),
+                12,
+                20
+            )
             deployedAddress := mload(0)
         }
-        if (!success) revert WriteError();
+        if (deployedAddress == address(0)) revert WriteError();
     }
 
     /// Reads data back from a previously deployed container.

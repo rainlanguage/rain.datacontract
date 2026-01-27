@@ -7,7 +7,12 @@ import {LibMemCpy} from "rain.solmem/lib/LibMemCpy.sol";
 import {LibBytes} from "rain.solmem/lib/LibBytes.sol";
 
 import {
-    LibPointer, Pointer, DataContractMemoryContainer, LibDataContract, ReadError
+    LibPointer,
+    Pointer,
+    DataContractMemoryContainer,
+    LibDataContract,
+    ReadError,
+    WriteError
 } from "src/lib/LibDataContract.sol";
 
 /// @title DataContractTest
@@ -21,11 +26,7 @@ contract DataContractTest is Test {
         return LibDataContract.read(datacontract);
     }
 
-    function readSliceExternal(address datacontract, uint16 start, uint16 length)
-        external
-        view
-        returns (bytes memory)
-    {
+    function readSliceExternal(address datacontract, uint16 start, uint16 length) external view returns (bytes memory) {
         return LibDataContract.readSlice(datacontract, start, length);
     }
 
@@ -180,5 +181,15 @@ contract DataContractTest is Test {
 
         assertEq(datacontractBeta, 0x7B5220368D7460A84bCFCCB0616f77E61e5302e2);
         assertEq(keccak256(data), keccak256(LibDataContract.read(datacontractBeta)));
+    }
+
+    /// Check that if we use zoltu without the zoltu proxy existing that we
+    /// revert.
+    function testZoltuNoZoltu(bytes memory data) external {
+        (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
+        LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
+
+        vm.expectRevert(abi.encodeWithSelector(WriteError.selector));
+        LibDataContract.writeZoltu(container);
     }
 }
