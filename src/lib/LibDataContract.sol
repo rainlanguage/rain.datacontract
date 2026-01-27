@@ -6,7 +6,7 @@ pragma solidity ^0.8.25;
 import {LibPointer, Pointer} from "../../lib/rain.solmem/src/lib/LibPointer.sol";
 import {WriteError, ReadError} from "../error/ErrDataContract.sol";
 
-/// @dev SSTORE2 Verbatim reference
+/// @dev SSTORE2 Verbatim original reference
 /// https://github.com/0xsequence/sstore2/blob/master/contracts/utils/Bytecode.sol#L15
 ///
 /// 0x00    0x63         0x63XXXXXX  PUSH4 _code.length  size
@@ -17,6 +17,9 @@ import {WriteError, ReadError} from "../error/ErrDataContract.sol";
 /// 0x05    0x60         0x6000      PUSH1 00            0 size
 /// 0x06    0xf3         0xf3        RETURN
 /// <CODE>
+///
+/// The assembly below is a modified version of this original reference according
+/// to the notes following.
 ///
 /// However note that 00 is also prepended (although docs say append) so there's
 /// an additional byte that isn't described above.
@@ -30,11 +33,26 @@ import {WriteError, ReadError} from "../error/ErrDataContract.sol";
 /// This also changes the 0x600e to 0x600c as we've reduced prefix size by 2
 /// relative to reference implementation.
 /// https://github.com/0xsequence/sstore2/pull/5/files
+///
+/// The final modified bytecode is therefore:
+/// 0x61         0x61XXXX    PUSH2 _code.length  size
+/// 0x80         0x80        DUP1                size size
+/// 0x60         0x600c      PUSH1 12            12 size size
+/// 0x60         0x6000      PUSH1 00            0 12 size size
+/// 0x39         0x39        CODECOPY            size
+/// 0x60         0x6000      PUSH1 00            0 size
+/// 0xf3         0xf3        RETURN
+/// 0x00         0x00        <extra byte prepended by SSTORE2>
+/// <CODE>
 uint256 constant BASE_PREFIX = 0x61_0000_80_600C_6000_39_6000_F3_00_00000000000000000000000000000000000000;
 
 /// @dev Length of the prefix that converts in memory data to a deployable
 /// contract.
 uint256 constant PREFIX_BYTES_LENGTH = 13;
+
+/// @dev Zoltu deterministic deployment proxy address.
+/// https://github.com/Zoltu/deterministic-deployment-proxy?tab=readme-ov-file#proxy-address
+address constant ZOLTU_PROXY_ADDRESS = 0x7A0D94F55792C434d74a40883C6ed8545E406D12;
 
 /// A container is a region of memory that is directly deployable with `create`,
 /// without length prefixes or other Solidity type trappings. Where the length is
@@ -116,16 +134,17 @@ library LibDataContract {
         address pointer;
         uint256 prefixLength = PREFIX_BYTES_LENGTH;
         assembly ("memory-safe") {
-            pointer :=
-                create(
-                    0,
-                    container,
-                    add(
-                        prefixLength,
-                        // Read length out of prefix.
-                        and(0xFFFF, shr(232, mload(container)))
-                    )
+            pointer := create(
+                0,
+                container,
+                add(
+                    prefixLength,
+                    // Read length out of prefix.
+                    // Sub 1 as length stored is +1 to include the 0x00 prefix
+                    // byte.
+                    sub(and(0xFFFF, shr(232, mload(container))), 1)
                 )
+            )
         }
         // Zero address means create failed.
         if (pointer == address(0)) revert WriteError();
@@ -137,27 +156,29 @@ library LibDataContract {
     /// will be the same on all networks and for all callers for the same data.
     /// https://github.com/Zoltu/deterministic-deployment-proxy
     function writeZoltu(DataContractMemoryContainer container) internal returns (address deployedAddress) {
+        address zoltu = ZOLTU_PROXY_ADDRESS;
         uint256 prefixLength = PREFIX_BYTES_LENGTH;
         bool success;
         assembly ("memory-safe") {
             mstore(0, 0)
-            success :=
-                call(
-                    gas(),
-                    0x7A0D94F55792C434d74a40883C6ed8545E406D12,
-                    0,
-                    container,
-                    add(
-                        prefixLength,
-                        // Read length out of prefix.
-                        and(0xFFFF, shr(232, mload(container)))
-                    ),
-                    12,
-                    20
-                )
+            success := call(
+                gas(),
+                zoltu,
+                0,
+                container,
+                add(
+                    prefixLength,
+                    // Read length out of prefix.
+                    // Sub 1 as length stored is +1 to include the 0x00 prefix
+                    // byte.
+                    sub(and(0xFFFF, shr(232, mload(container))), 1)
+                ),
+                12,
+                20
+            )
             deployedAddress := mload(0)
         }
-        if (!success) revert WriteError();
+        if (deployedAddress == address(0) || !success) revert WriteError();
     }
 
     /// Reads data back from a previously deployed container.

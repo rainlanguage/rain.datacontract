@@ -7,7 +7,13 @@ import {LibMemCpy} from "rain.solmem/lib/LibMemCpy.sol";
 import {LibBytes} from "rain.solmem/lib/LibBytes.sol";
 
 import {
-    LibPointer, Pointer, DataContractMemoryContainer, LibDataContract, ReadError
+    LibPointer,
+    Pointer,
+    DataContractMemoryContainer,
+    LibDataContract,
+    ReadError,
+    WriteError,
+    ZOLTU_PROXY_ADDRESS
 } from "src/lib/LibDataContract.sol";
 
 /// @title DataContractTest
@@ -21,12 +27,14 @@ contract DataContractTest is Test {
         return LibDataContract.read(datacontract);
     }
 
-    function readSliceExternal(address datacontract, uint16 start, uint16 length)
-        external
-        view
-        returns (bytes memory)
-    {
+    function readSliceExternal(address datacontract, uint16 start, uint16 length) external view returns (bytes memory) {
         return LibDataContract.readSlice(datacontract, start, length);
+    }
+
+    function writeZoltuExternal(bytes memory data) external returns (address) {
+        (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
+        LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
+        return LibDataContract.writeZoltu(container);
     }
 
     /// Writing any data to a contract then reading it back without corrupting
@@ -171,14 +179,34 @@ contract DataContractTest is Test {
 
         address datacontractAlpha = LibDataContract.writeZoltu(container);
 
-        assertEq(datacontractAlpha, 0x7B5220368D7460A84bCFCCB0616f77E61e5302e2);
+        assertEq(datacontractAlpha, 0x1Cf89F16784b780E549105B04e80D5196E13C4Af);
         assertEq(keccak256(data), keccak256(LibDataContract.read(datacontractAlpha)));
 
         vm.createSelectFork(vm.envString("CI_FORK_AVALANCHE_RPC_URL"));
 
         address datacontractBeta = LibDataContract.writeZoltu(container);
 
-        assertEq(datacontractBeta, 0x7B5220368D7460A84bCFCCB0616f77E61e5302e2);
+        assertEq(datacontractBeta, 0x1Cf89F16784b780E549105B04e80D5196E13C4Af);
         assertEq(keccak256(data), keccak256(LibDataContract.read(datacontractBeta)));
+    }
+
+    /// Check that if we use zoltu without the zoltu proxy existing that we
+    /// revert.
+    function testZoltuNoZoltu(bytes memory data) external {
+        vm.assume(ZOLTU_PROXY_ADDRESS.code.length == 0);
+        vm.expectRevert(abi.encodeWithSelector(WriteError.selector));
+        this.writeZoltuExternal(data);
+    }
+
+    /// Check that if zoltu exists but returns not success we revert.
+    function testZoltuBadZoltu(bytes memory data) external {
+        vm.assume(ZOLTU_PROXY_ADDRESS.code.length == 0);
+        vm.etch(
+            ZOLTU_PROXY_ADDRESS,
+            // revert opcode.
+            hex"fd"
+        );
+        vm.expectRevert(abi.encodeWithSelector(WriteError.selector));
+        this.writeZoltuExternal(data);
     }
 }
