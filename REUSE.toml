@@ -7,6 +7,7 @@ path = [
     ".vscode/**/",
     ".gitignore",
     ".gitmodules",
+    "audit/**/",
     "README.md",
     "flake.lock",
     "flake.nix",
