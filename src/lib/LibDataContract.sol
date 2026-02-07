@@ -91,7 +91,8 @@ library LibDataContract {
     /// @return creationCode The creation code that can be deployed to create a
     /// contract containing the data.
     function contractCreationCode(bytes memory data) internal pure returns (bytes memory creationCode) {
-        if (data.length > uint256(type(uint16).max)) {
+        // GTE here because of the extra 0 byte that needs to be accounted for.
+        if (data.length >= uint256(type(uint16).max)) {
             revert DataTooLarge(data.length);
         }
         uint256 prefixBytesLength = PREFIX_BYTES_LENGTH;

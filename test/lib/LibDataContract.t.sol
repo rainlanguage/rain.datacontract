@@ -35,7 +35,7 @@ contract DataContractTest is Test {
     }
 
     function testContractCreationCodeDataTooLargeRevert(uint256 length) external {
-        length = bound(length, uint256(type(uint16).max) + 1, type(uint256).max);
+        length = bound(length, uint256(type(uint16).max), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(LibDataContract.DataTooLarge.selector, length));
         this.contractCreationCodeVeryLargeData(length);
     }

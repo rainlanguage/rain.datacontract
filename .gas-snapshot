@@ -1,5 +1,0 @@
-DataContractTest:testErrorBadAddressRead(address) (runs: 1024, μ: 8771, ~: 8771)
-DataContractTest:testRoundCreationCodeFuzz(bytes,bytes,uint16,uint16) (runs: 1024, μ: 48470, ~: 46014)
-DataContractTest:testRoundSliceError(bytes,uint16,uint16) (runs: 1024, μ: 47973, ~: 46191)
-DataContractTest:testSameReads(bytes) (runs: 1024, μ: 45864, ~: 43845)
-DataContractTest:testZeroPrefix(bytes) (runs: 1024, μ: 41769, ~: 39764)
