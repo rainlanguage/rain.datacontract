@@ -75,6 +75,11 @@ type DataContractMemoryContainer is uint256;
 /// Solidity but instead requires the caller to copy memory directy by pointer.
 /// https://github.com/rainprotocol/sol.lib.bytes can help with that.
 library LibDataContract {
+    /// Thrown when trying to write data that is too large to fit in uint16.
+    /// @param dataLength The length of the data that was attempted to create a
+    /// contract with.
+    error DataTooLarge(uint256 dataLength);
+
     /// Given some data in memory, prepares the creation code for a contract that
     /// will contain that data when deployed. The caller is responsible for
     /// actually deploying the creation code, which should be compatible with any
@@ -86,6 +91,9 @@ library LibDataContract {
     /// @return creationCode The creation code that can be deployed to create a
     /// contract containing the data.
     function contractCreationCode(bytes memory data) internal pure returns (bytes memory creationCode) {
+        if (data.length > uint256(type(uint16).max)) {
+            revert DataTooLarge(data.length);
+        }
         uint256 prefixBytesLength = PREFIX_BYTES_LENGTH;
         uint256 basePrefix = BASE_PREFIX;
         assembly ("memory-safe") {
