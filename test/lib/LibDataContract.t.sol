@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity =0.8.25;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console2} from "forge-std/Test.sol";
 import {LibMemCpy} from "rain.solmem/lib/LibMemCpy.sol";
 import {LibBytes} from "rain.solmem/lib/LibBytes.sol";
 
@@ -31,11 +31,14 @@ contract DataContractTest is Test {
         return LibDataContract.readSlice(datacontract, start, length);
     }
 
-    function testRoundCreationCodeFuzz(bytes memory data, bytes memory garbage, uint16 start, uint16 length) external {
-        vm.assume(uint256(start) + uint256(length) <= data.length);
+    function testRoundCreationCodeFuzz(bytes memory data, bytes memory garbage, uint16 start, uint16 sliceLength)
+        external
+    {
+        bytes32 dataHash = keccak256(data);
+        vm.assume(uint256(start) + uint256(sliceLength) <= data.length);
 
-        bytes memory expectedSlice = new bytes(length);
-        LibMemCpy.unsafeCopyBytesTo(data.dataPointer().unsafeAddBytes(start), expectedSlice.dataPointer(), length);
+        bytes memory expectedSlice = new bytes(sliceLength);
+        LibMemCpy.unsafeCopyBytesTo(data.dataPointer().unsafeAddBytes(start), expectedSlice.dataPointer(), sliceLength);
 
         // Put some garbage in unallocated memory.
         LibMemCpy.unsafeCopyBytesTo(garbage.dataPointer(), LibPointer.allocatedMemoryPointer(), garbage.length);
@@ -50,7 +53,12 @@ contract DataContractTest is Test {
         assertEq(round.length, data.length);
         assertEq(round, data);
 
-        bytes memory roundSlice = LibDataContract.readSlice(dataContract, start, length);
+        // Check before/after hashes against datas to ensure bad mutations didn't
+        // occur somewhere in the process.
+        assertEq(keccak256(data), dataHash);
+        assertEq(keccak256(round), dataHash);
+
+        bytes memory roundSlice = LibDataContract.readSlice(dataContract, start, sliceLength);
         assertEq(roundSlice, expectedSlice);
     }
 

@@ -114,7 +114,7 @@ library LibDataContract {
             // copy data to end of prefix in creation code
             let dataPointer := add(data, 0x20)
             let creationCodeDataPointer := add(creationCode, add(0x20, prefixBytesLength))
-            mcopy(dataPointer, creationCodeDataPointer, mload(data))
+            mcopy(creationCodeDataPointer, dataPointer, mload(data))
         }
     }
 
