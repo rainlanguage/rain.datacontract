@@ -122,10 +122,6 @@ contract DataContractTest is Test {
             dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
         }
 
-        // (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
-        // LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
-        // address datacontract = LibDataContract.write(container);
-
         uint256 a = gasleft();
         bytes memory read = LibDataContract.read(dataContract);
         uint256 b = gasleft();
