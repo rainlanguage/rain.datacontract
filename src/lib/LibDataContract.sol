@@ -111,10 +111,7 @@ library LibDataContract {
                     shl(
                         // Length sits 29 bytes from the right
                         232,
-                        // Length fits in 2 bytes for all valid inputs of type
-                        // `bytes` that can possibly deploy as a contract (max 24kb).
-                        // Add 1 to length to include the 0x00 prefix byte to be
-                        // deployed along with the main contract data.
+                        // Length fits in 2 bytes as asserted above.
                         add(mload(data), 1)
                     )
                 )
