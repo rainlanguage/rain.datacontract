@@ -75,6 +75,39 @@ type DataContractMemoryContainer is uint256;
 /// Solidity but instead requires the caller to copy memory directy by pointer.
 /// https://github.com/rainprotocol/sol.lib.bytes can help with that.
 library LibDataContract {
+    function contractCreationCode(bytes memory data) internal pure returns (bytes memory creationCode) {
+        uint256 prefixBytesLength = PREFIX_BYTES_LENGTH;
+        uint256 basePrefix = BASE_PREFIX;
+        assembly ("memory-safe") {
+            // allocate output byte array
+            creationCode := mload(0x40)
+            // new "memory end" including padding
+            let dataLength := add(prefixBytesLength, mload(data))
+            let paddedDataLength := and(add(dataLength, 0x1f), not(0x1f))
+            let totalLength := add(paddedDataLength, 0x20)
+            mstore(0x40, add(creationCode, totalLength))
+            mstore(creationCode, dataLength)
+            let prefix :=
+                or(
+                    basePrefix,
+                    shl(
+                        // Length sits 29 bytes from the right
+                        232,
+                        // Length fits in 2 bytes for all valid inputs of type
+                        // `bytes` that can possibly deploy as a contract (max 24kb).
+                        // Add 1 to length to include the 0x00 prefix byte to be
+                        // deployed along with the main contract data.
+                        add(mload(data), 1)
+                    )
+                )
+            mstore(add(creationCode, 0x20), prefix)
+            // copy data to end of prefix in creation code
+            let dataPointer := add(data, 0x20)
+            let creationCodeDataPointer := add(creationCode, add(0x20, prefixBytesLength))
+            mcopy(dataPointer, creationCodeDataPointer, mload(data))
+        }
+    }
+
     /// Prepares a container ready to write exactly `length` bytes at the
     /// returned `pointer_`. The caller MUST write exactly the number of bytes
     /// that it asks for at the pointer otherwise memory WILL be corrupted.
