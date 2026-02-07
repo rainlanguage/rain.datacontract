@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity =0.8.25;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console2} from "forge-std/Test.sol";
 import {LibMemCpy} from "rain.solmem/lib/LibMemCpy.sol";
 import {LibBytes} from "rain.solmem/lib/LibBytes.sol";
 
@@ -23,6 +23,23 @@ contract DataContractTest is Test {
     using LibBytes for bytes;
     using LibPointer for Pointer;
 
+    function contractCreationCodeVeryLargeData(uint256 length) external pure {
+        bytes memory data;
+        // Point data after allocated memory and just extend it virtually out
+        // to the desired length without doing an explicit memory expansion.
+        assembly ("memory-safe") {
+            data := mload(0x40)
+            mstore(data, length)
+        }
+        LibDataContract.contractCreationCode(data);
+    }
+
+    function testContractCreationCodeDataTooLargeRevert(uint256 length) external {
+        length = bound(length, uint256(type(uint16).max), type(uint256).max);
+        vm.expectRevert(abi.encodeWithSelector(LibDataContract.DataTooLarge.selector, length));
+        this.contractCreationCodeVeryLargeData(length);
+    }
+
     function readExternal(address datacontract) external view returns (bytes memory) {
         return LibDataContract.read(datacontract);
     }
@@ -31,28 +48,35 @@ contract DataContractTest is Test {
         return LibDataContract.readSlice(datacontract, start, length);
     }
 
-    function writeZoltuExternal(bytes memory data) external returns (address) {
-        (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
-        LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
-        return LibDataContract.writeZoltu(container);
-    }
+    function testRoundCreationCodeFuzz(bytes memory data, bytes memory garbage, uint16 start, uint16 sliceLength)
+        external
+    {
+        bytes32 dataHash = keccak256(data);
+        vm.assume(uint256(start) + uint256(sliceLength) <= data.length);
 
-    /// Writing any data to a contract then reading it back without corrupting
-    /// memory or the data itself.
-    function testRoundFuzz(bytes memory data, bytes memory garbage) public {
+        bytes memory expectedSlice = new bytes(sliceLength);
+        LibMemCpy.unsafeCopyBytesTo(data.dataPointer().unsafeAddBytes(start), expectedSlice.dataPointer(), sliceLength);
+
         // Put some garbage in unallocated memory.
         LibMemCpy.unsafeCopyBytesTo(garbage.dataPointer(), LibPointer.allocatedMemoryPointer(), garbage.length);
 
-        (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
-
-        LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
-
-        address datacontract = LibDataContract.write(container);
-
-        bytes memory round = LibDataContract.read(datacontract);
+        bytes memory creationCode = LibDataContract.contractCreationCode(data);
+        address dataContract;
+        assembly ("memory-safe") {
+            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
+        }
+        bytes memory round = LibDataContract.read(dataContract);
 
         assertEq(round.length, data.length);
         assertEq(round, data);
+
+        // Check before/after hashes against datas to ensure bad mutations didn't
+        // occur somewhere in the process.
+        assertEq(keccak256(data), dataHash);
+        assertEq(keccak256(round), dataHash);
+
+        bytes memory roundSlice = LibDataContract.readSlice(dataContract, start, sliceLength);
+        assertEq(roundSlice, expectedSlice);
     }
 
     /// Reading from a contract that isn't a valid data contract should throw
@@ -74,46 +98,34 @@ contract DataContractTest is Test {
         (read);
     }
 
-    /// Should be possible to read only a slice of the data.
-    function testRoundSlice(bytes memory data, uint16 start, uint16 length) public {
-        vm.assume(uint256(start) + uint256(length) <= data.length);
-
-        bytes memory expected = new bytes(length);
-        LibMemCpy.unsafeCopyBytesTo(data.dataPointer().unsafeAddBytes(start), expected.dataPointer(), length);
-
-        (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
-        LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
-        address datacontract = LibDataContract.write(container);
-
-        bytes memory slice = LibDataContract.readSlice(datacontract, start, length);
-
-        assertEq(expected, slice);
-    }
-
     /// Reading a slice that is out of bounds should throw a ReadError.
     function testRoundSliceError(bytes memory data, uint16 start, uint16 length) public {
         vm.assume(uint256(start) + uint256(length) > data.length);
 
-        (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
-        LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
-        address datacontract = LibDataContract.write(container);
+        bytes memory creationCode = LibDataContract.contractCreationCode(data);
+        address dataContract;
+        assembly ("memory-safe") {
+            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
+        }
 
         vm.expectRevert(ReadError.selector);
-        (bytes memory slice) = this.readSliceExternal(datacontract, start, length);
+        (bytes memory slice) = this.readSliceExternal(dataContract, start, length);
         (slice);
     }
 
     /// Reading a slice over the whole contract gives the same result as reading
     /// the whole contract.
     function testSameReads(bytes memory data) public {
-        (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
-        LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
-        address datacontract = LibDataContract.write(container);
+        bytes memory creationCode = LibDataContract.contractCreationCode(data);
+        address dataContract;
+        assembly ("memory-safe") {
+            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
+        }
 
         uint256 a = gasleft();
-        bytes memory read = LibDataContract.read(datacontract);
+        bytes memory read = LibDataContract.read(dataContract);
         uint256 b = gasleft();
-        bytes memory readSlice = LibDataContract.readSlice(datacontract, 0, uint16(data.length));
+        bytes memory readSlice = LibDataContract.readSlice(dataContract, 0, uint16(data.length));
         uint256 c = gasleft();
 
         assertEq(read, readSlice);
@@ -121,92 +133,21 @@ contract DataContractTest is Test {
         assertGt(b - c, a - b);
     }
 
-    /// Writing data twice yields two different addresses even if the data is
-    /// the same.
-    function testNewAddressFuzzData(bytes memory data) public {
-        (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
-        LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
-
-        address datacontractAlpha = LibDataContract.write(container);
-        address datacontractBeta = LibDataContract.write(container);
-
-        assertTrue(datacontractAlpha != datacontractBeta);
-        assertEq(LibDataContract.read(datacontractAlpha), LibDataContract.read(datacontractBeta));
-    }
-
-    /// Writing data twice yields two different addresses if the data is
-    /// different.
-    function testNewAddressFuzzDataDifferent(bytes memory alpha, bytes memory beta) public {
-        vm.assume(keccak256(alpha) != keccak256(beta));
-        (DataContractMemoryContainer containerAlpha, Pointer pointerAlpha) = LibDataContract.newContainer(alpha.length);
-        LibMemCpy.unsafeCopyBytesTo(alpha.dataPointer(), pointerAlpha, alpha.length);
-        (DataContractMemoryContainer containerBeta, Pointer pointerBeta) = LibDataContract.newContainer(beta.length);
-        LibMemCpy.unsafeCopyBytesTo(beta.dataPointer(), pointerBeta, beta.length);
-
-        address datacontractAlpha = LibDataContract.write(containerAlpha);
-        address datacontractBeta = LibDataContract.write(containerBeta);
-
-        assertTrue(datacontractAlpha != datacontractBeta);
-        assertTrue(
-            keccak256(LibDataContract.read(datacontractAlpha)) != keccak256(LibDataContract.read(datacontractBeta))
-        );
-    }
-
     /// Check there is always a 0 byte prefix on the underlying data contract.
     function testZeroPrefix(bytes memory data) public {
-        (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
-        LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
-        address datacontract_ = LibDataContract.write(container);
+        bytes memory creationCode = LibDataContract.contractCreationCode(data);
+        address dataContract;
+        assembly ("memory-safe") {
+            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
+        }
+
         uint256 firstByte;
         assembly ("memory-safe") {
             mstore(0, 0)
             // copy to scratch.
-            extcodecopy(datacontract_, 0, 0, 1)
+            extcodecopy(dataContract, 0, 0, 1)
             firstByte := mload(0)
         }
         assertEq(firstByte, 0);
-    }
-
-    /// Check that if we deploy with zoltu we get the same address on different
-    /// networks.
-    function testZoltu() public {
-        bytes memory data = bytes("zoltu");
-
-        (DataContractMemoryContainer container, Pointer pointer) = LibDataContract.newContainer(data.length);
-        LibMemCpy.unsafeCopyBytesTo(data.dataPointer(), pointer, data.length);
-
-        vm.createSelectFork(vm.envString("CI_FORK_ETH_RPC_URL"));
-
-        address datacontractAlpha = LibDataContract.writeZoltu(container);
-
-        assertEq(datacontractAlpha, 0x1Cf89F16784b780E549105B04e80D5196E13C4Af);
-        assertEq(keccak256(data), keccak256(LibDataContract.read(datacontractAlpha)));
-
-        vm.createSelectFork(vm.envString("CI_FORK_AVALANCHE_RPC_URL"));
-
-        address datacontractBeta = LibDataContract.writeZoltu(container);
-
-        assertEq(datacontractBeta, 0x1Cf89F16784b780E549105B04e80D5196E13C4Af);
-        assertEq(keccak256(data), keccak256(LibDataContract.read(datacontractBeta)));
-    }
-
-    /// Check that if we use zoltu without the zoltu proxy existing that we
-    /// revert.
-    function testZoltuNoZoltu(bytes memory data) external {
-        vm.assume(ZOLTU_PROXY_ADDRESS.code.length == 0);
-        vm.expectRevert(abi.encodeWithSelector(WriteError.selector));
-        this.writeZoltuExternal(data);
-    }
-
-    /// Check that if zoltu exists but returns not success we revert.
-    function testZoltuBadZoltu(bytes memory data) external {
-        vm.assume(ZOLTU_PROXY_ADDRESS.code.length == 0);
-        vm.etch(
-            ZOLTU_PROXY_ADDRESS,
-            // revert opcode.
-            hex"fd"
-        );
-        vm.expectRevert(abi.encodeWithSelector(WriteError.selector));
-        this.writeZoltuExternal(data);
     }
 }

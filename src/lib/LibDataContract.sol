@@ -75,110 +75,53 @@ type DataContractMemoryContainer is uint256;
 /// Solidity but instead requires the caller to copy memory directy by pointer.
 /// https://github.com/rainprotocol/sol.lib.bytes can help with that.
 library LibDataContract {
-    /// Prepares a container ready to write exactly `length` bytes at the
-    /// returned `pointer_`. The caller MUST write exactly the number of bytes
-    /// that it asks for at the pointer otherwise memory WILL be corrupted.
-    /// @param length Caller specifies the number of bytes to allocate for the
-    /// data it wants to write. The actual size of the container in memory will
-    /// be larger than this due to the contract creation prefix and the padding
-    /// potentially required to align the memory allocation.
-    /// @return container The pointer to the start of the container that can be
-    /// deployed as an onchain contract. Caller can pass this back to `write` to
-    /// have the data contract deployed
-    /// (after it copies its data to the pointer).
-    /// @return pointer The caller can copy its data at the pointer without any
-    /// additional allocations or Solidity type wrangling.
-    function newContainer(uint256 length)
-        internal
-        pure
-        returns (DataContractMemoryContainer container, Pointer pointer)
-    {
-        unchecked {
-            uint256 prefixBytesLength = PREFIX_BYTES_LENGTH;
-            uint256 basePrefix = BASE_PREFIX;
-            assembly ("memory-safe") {
-                // allocate output byte array - this could also be done without assembly
-                // by using container = new bytes(size)
-                container := mload(0x40)
-                // new "memory end" including padding
-                mstore(0x40, add(container, and(add(add(length, prefixBytesLength), 0x1f), not(0x1f))))
-                // pointer is where the caller will write data to
-                pointer := add(container, prefixBytesLength)
+    /// Thrown when trying to write data that is too large to fit in uint16.
+    /// @param dataLength The length of the data that was attempted to create a
+    /// contract with.
+    error DataTooLarge(uint256 dataLength);
 
-                // copy length into the 2 bytes gap in the base prefix
-                let prefix :=
-                    or(
-                        basePrefix,
-                        shl(
-                            // length sits 29 bytes from the right
-                            232,
-                            and(
-                                // mask the length to 2 bytes
-                                0xFFFF,
-                                add(length, 1)
-                            )
-                        )
+    /// Given some data in memory, prepares the creation code for a contract that
+    /// will contain that data when deployed. The caller is responsible for
+    /// actually deploying the creation code, which should be compatible with any
+    /// normal method that works for `type(Foo).creationCode` such as `create` or
+    /// a deterministic deployment proxy. Usual considerations such as checking
+    /// the success of contract creation after deployment all apply.
+    /// @param data The data to be included in the deployed contract. This can be
+    /// any data that fits in the EVM code size limit for contracts (24kb).
+    /// @return creationCode The creation code that can be deployed to create a
+    /// contract containing the data.
+    function contractCreationCode(bytes memory data) internal pure returns (bytes memory creationCode) {
+        // GTE here because of the extra 0 byte that needs to be accounted for.
+        if (data.length >= uint256(type(uint16).max)) {
+            revert DataTooLarge(data.length);
+        }
+        uint256 prefixBytesLength = PREFIX_BYTES_LENGTH;
+        uint256 basePrefix = BASE_PREFIX;
+        assembly ("memory-safe") {
+            // allocate output byte array
+            creationCode := mload(0x40)
+            // new "memory end" including padding
+            let dataLength := add(prefixBytesLength, mload(data))
+            let paddedDataLength := and(add(dataLength, 0x1f), not(0x1f))
+            let totalLength := add(paddedDataLength, 0x20)
+            mstore(0x40, add(creationCode, totalLength))
+            mstore(creationCode, dataLength)
+            let prefix :=
+                or(
+                    basePrefix,
+                    shl(
+                        // Length sits 29 bytes from the right
+                        232,
+                        // Length fits in 2 bytes as asserted above.
+                        add(mload(data), 1)
                     )
-                mstore(container, prefix)
-            }
-        }
-    }
-
-    /// Given a container prepared by `newContainer` and populated with bytes by
-    /// the caller, deploy to a new onchain contract and return the contract
-    /// address.
-    /// @param container The container full of data to deploy as an onchain data
-    /// contract.
-    /// @return The newly deployed contract containing the data in the container.
-    function write(DataContractMemoryContainer container) internal returns (address) {
-        address pointer;
-        uint256 prefixLength = PREFIX_BYTES_LENGTH;
-        assembly ("memory-safe") {
-            pointer := create(
-                0,
-                container,
-                add(
-                    prefixLength,
-                    // Read length out of prefix.
-                    // Sub 1 as length stored is +1 to include the 0x00 prefix
-                    // byte.
-                    sub(and(0xFFFF, shr(232, mload(container))), 1)
                 )
-            )
+            mstore(add(creationCode, 0x20), prefix)
+            // copy data to end of prefix in creation code
+            let dataPointer := add(data, 0x20)
+            let creationCodeDataPointer := add(creationCode, add(0x20, prefixBytesLength))
+            mcopy(creationCodeDataPointer, dataPointer, mload(data))
         }
-        // Zero address means create failed.
-        if (pointer == address(0)) revert WriteError();
-        return pointer;
-    }
-
-    /// Same as `write` but deploys to a deterministic address that does not
-    /// rely on the address nor nonce of the caller. This means that the address
-    /// will be the same on all networks and for all callers for the same data.
-    /// https://github.com/Zoltu/deterministic-deployment-proxy
-    function writeZoltu(DataContractMemoryContainer container) internal returns (address deployedAddress) {
-        address zoltu = ZOLTU_PROXY_ADDRESS;
-        uint256 prefixLength = PREFIX_BYTES_LENGTH;
-        bool success;
-        assembly ("memory-safe") {
-            mstore(0, 0)
-            success := call(
-                gas(),
-                zoltu,
-                0,
-                container,
-                add(
-                    prefixLength,
-                    // Read length out of prefix.
-                    // Sub 1 as length stored is +1 to include the 0x00 prefix
-                    // byte.
-                    sub(and(0xFFFF, shr(232, mload(container))), 1)
-                ),
-                12,
-                20
-            )
-            deployedAddress := mload(0)
-        }
-        if (deployedAddress == address(0) || !success) revert WriteError();
     }
 
     /// Reads data back from a previously deployed container.
