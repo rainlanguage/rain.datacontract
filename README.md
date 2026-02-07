@@ -11,14 +11,19 @@ https://github.com/0xsequence/sstore2
 - Reverts instead of silently truncating if slices are out of range for data
 - Safer start/length paradigm than start/end for slicing
 
-It is a little more low level in that it doesn't work on `bytes` from
-Solidity but instead requires the caller to copy memory directy by pointer.
-https://github.com/rainprotocol/sol.lib.bytes can help with that.
+The input to this library is any `bytes` array that fits into a contract (24kb)
+and the output is a deployable contract equivalent to something that Solidity
+would produce with `type(Foo).creationCode`.
 
-Also included is a Zoltu deterministic deployment proxy contract compatible
-deployment for data contracts, so that the data can be found at the same address
-across multiple networks.
-https://github.com/Zoltu/deterministic-deployment-proxy
+The library makes no assumptions or provisions as to how you will deploy the
+creation code, whether it is a direction `create` call in assembly, some proxy
+pattern such as Zoltu deterministic proxy, or some other method. By leaving the
+deployment agnostic and focussing on compatiblity with standard creation codes,
+this library aims to be simple and stable.
+
+The library provides two methods to read the data back once deployed, `read` and
+`readSlice`. The former returns the entirety of the deployed data as `bytes` and
+the later returns a subset as a slice from a `start` offset and `length`.
 
 ## Dev stuff
 
