@@ -23,6 +23,23 @@ contract DataContractTest is Test {
     using LibBytes for bytes;
     using LibPointer for Pointer;
 
+    function contractCreationCodeVeryLargeData(uint256 length) external pure {
+        bytes memory data;
+        // Point data after allocated memory and just extend it virtually out
+        // to the desired length without doing an explicit memory expansion.
+        assembly ("memory-safe") {
+            data := mload(0x40)
+            mstore(data, length)
+        }
+        LibDataContract.contractCreationCode(data);
+    }
+
+    function testContractCreationCodeDataTooLargeRevert(uint256 length) external {
+        length = bound(length, uint256(type(uint16).max) + 1, type(uint256).max);
+        vm.expectRevert(abi.encodeWithSelector(LibDataContract.DataTooLarge.selector, length));
+        this.contractCreationCodeVeryLargeData(length);
+    }
+
     function readExternal(address datacontract) external view returns (bytes memory) {
         return LibDataContract.read(datacontract);
     }
