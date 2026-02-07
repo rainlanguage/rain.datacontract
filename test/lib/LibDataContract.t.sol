@@ -37,6 +37,21 @@ contract DataContractTest is Test {
         return LibDataContract.writeZoltu(container);
     }
 
+    function testRoundCreationCodeFuzz(bytes memory data, bytes memory garbage) external {
+        // Put some garbage in unallocated memory.
+        LibMemCpy.unsafeCopyBytesTo(garbage.dataPointer(), LibPointer.allocatedMemoryPointer(), garbage.length);
+
+        bytes memory creationCode = LibDataContract.contractCreationCode(data);
+        address dataContract;
+        assembly ("memory-safe") {
+            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
+        }
+        bytes memory round = LibDataContract.read(dataContract);
+
+        assertEq(round.length, data.length);
+        assertEq(round, data);
+    }
+
     /// Writing any data to a contract then reading it back without corrupting
     /// memory or the data itself.
     function testRoundFuzz(bytes memory data, bytes memory garbage) public {

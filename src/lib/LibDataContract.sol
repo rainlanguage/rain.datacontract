@@ -75,6 +75,16 @@ type DataContractMemoryContainer is uint256;
 /// Solidity but instead requires the caller to copy memory directy by pointer.
 /// https://github.com/rainprotocol/sol.lib.bytes can help with that.
 library LibDataContract {
+    /// Given some data in memory, prepares the creation code for a contract that
+    /// will contain that data when deployed. The caller is responsible for
+    /// actually deploying the creation code, which should be compatible with any
+    /// normal method that works for `type(Foo).creationCode` such as `create` or
+    /// a deterministic deployment proxy. Usual considerations such as checking
+    /// the success of contract creation after deployment all apply.
+    /// @param data The data to be included in the deployed contract. This can be
+    /// any data that fits in the EVM code size limit for contracts (24kb).
+    /// @return creationCode The creation code that can be deployed to create a
+    /// contract containing the data.
     function contractCreationCode(bytes memory data) internal pure returns (bytes memory creationCode) {
         uint256 prefixBytesLength = PREFIX_BYTES_LENGTH;
         uint256 basePrefix = BASE_PREFIX;
