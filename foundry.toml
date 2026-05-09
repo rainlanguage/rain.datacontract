@@ -1,4 +1,5 @@
 [profile.default]
+libs = ["dependencies"]
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
 
@@ -10,3 +11,10 @@ evm_version = "cancun"
 
 [fuzz]
 runs = 1024
+
+[dependencies]
+forge-std = "1.16.1"
+"rain-solmem" = "0.1.3"
+
+[soldeer]
+recursive_deps = false

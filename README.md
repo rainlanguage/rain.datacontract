@@ -1,70 +1,74 @@
-# DataContract
+# rain.datacontract
 
-DataContract is a simplified reimplementation of
-https://github.com/0xsequence/sstore2
+Simplified reimplementation of [sstore2](https://github.com/0xsequence/sstore2):
+write arbitrary `bytes` (≤24KB) into a deployable contract and read it back.
 
-- Doesn't force additonal internal allocations with ABI encoding calls
-- Optimised for the case where the data to read/write and contract are 1:1
-- Assembly optimisations for less gas usage
-- Not shipped with other unrelated code to reduce dependency bloat
-- Fuzzed with foundry
-- Reverts instead of silently truncating if slices are out of range for data
-- Safer start/length paradigm than start/end for slicing
+Differences from sstore2:
 
-The input to this library is any `bytes` array that fits into a contract (24kb)
-and the output is a deployable contract equivalent to something that Solidity
-would produce with `type(Foo).creationCode`.
+- No internal ABI-encoding allocations.
+- Optimised for the 1:1 data-to-contract case.
+- Assembly hot path for less gas.
+- No unrelated code shipped — single library.
+- Fuzzed with foundry.
+- Reverts on out-of-range slices instead of silently truncating.
+- `start`/`length` slicing rather than `start`/`end`.
 
-The library makes no assumptions or provisions as to how you will deploy the
-creation code, whether it is a direction `create` call in assembly, some proxy
-pattern such as Zoltu deterministic proxy, or some other method. By leaving the
-deployment agnostic and focussing on compatiblity with standard creation codes,
-this library aims to be simple and stable.
+Output is creation code byte-equivalent to what Solidity would emit for
+`type(Foo).creationCode`. Deployment is left to the caller — direct `create`,
+Zoltu deterministic proxy, etc.
 
-The library provides two methods to read the data back once deployed, `read` and
-`readSlice`. The former returns the entirety of the deployed data as `bytes` and
-the later returns a subset as a slice from a `start` offset and `length`.
+Two read functions: `read` returns the entire deployed `bytes`; `readSlice`
+returns a `start`/`length` slice.
 
-## Dev stuff
+## Install
 
-### Local environment & CI
+Via [soldeer](https://soldeer.xyz):
 
-Uses nixos.
-
-Install `nix develop` - https://nixos.org/download.html.
-
-Run `nix develop` in this repo to drop into the shell. Please ONLY use the nix
-version of `foundry` for development, to ensure versions are all compatible.
-
-Read the `flake.nix` file to find some additional commands included for dev and
-CI usage.
-
-## Legal stuff
-
-Everything is under DecentraLicense 1.0 (DCL-1.0) which can be found in `LICENSES/`.
-
-This is basically `CAL-1.0` which is an open source license
-https://opensource.org/license/cal-1-0
-
-The non-legal summary of DCL-1.0 is that the source is open, as expected, but
-also user data in the systems that this code runs on must also be made available
-to those users as relevant, and that private keys remain private.
-
-Roughly it's "not your keys, not your coins" aware, as close as we could get in
-legalese.
-
-This is the default situation on permissionless blockchains, so shouldn't require
-any additional effort by dev-users to adhere to the license terms.
-
-This repo is REUSE 3.2 compliant https://reuse.software/spec-3.2/ and compatible
-with `reuse` tooling (also available in the nix shell here).
-
+```sh
+forge soldeer install rain-datacontract~<version>
 ```
+
+## Develop
+
+This repo uses [nix](https://nixos.org/download.html). The default shell is the
+slim `sol-shell` from [rainix](https://github.com/rainlanguage/rainix).
+
+```sh
+nix develop          # enter the shell
+forge soldeer install # install deps declared in foundry.toml
+forge test
+```
+
+Tasks:
+
+- `rainix-sol-test` — `forge test`
+- `rainix-sol-static` — slither
+- `rainix-sol-legal` — `reuse lint`
+
+Use the nix-pinned `forge` for all development.
+
+## Publish
+
+Tag `v<x.y.z>` on `main`. The
+[`Publish to Soldeer`](.github/workflows/publish-soldeer.yaml) wrapper delegates
+to rainix's reusable workflow, which derives the package name from the repo name
+(`rain.datacontract` → `rain-datacontract`).
+
+## License
+
+DecentraLicense 1.0 (DCL-1.0) — full text in
+[`LICENSES/`](LICENSES/LicenseRef-DCL-1.0.txt). Roughly `CAL-1.0`
+([opensource.org](https://opensource.org/license/cal-1-0)) plus user-data
+disclosure obligations consistent with permissionless-blockchain assumptions.
+
+This repo is [REUSE 3.2](https://reuse.software/spec-3.2/) compliant. Verify
+locally:
+
+```sh
 nix develop -c rainix-sol-legal
 ```
 
 ## Contributions
 
-Contributions are welcome **under the same license** as above.
-
-Contributors agree and warrant that their contributions are compliant.
+Welcome under the same license. Contributors warrant that their contributions
+are compliant.
