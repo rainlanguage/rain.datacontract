@@ -1,5 +1,0 @@
-name: rainix-sol-static
-on: [push]
-jobs:
-  static:
-    uses: rainlanguage/rainix/.github/workflows/rainix-sol-static.yaml@main
