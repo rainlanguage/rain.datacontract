@@ -1,0 +1,6 @@
+name: rainix-sol-test
+on: [push]
+jobs:
+  test:
+    uses: rainlanguage/rainix/.github/workflows/rainix-sol-test.yaml@main
+    secrets: inherit

@@ -1,0 +1,5 @@
+name: rainix-sol-legal
+on: [push]
+jobs:
+  legal:
+    uses: rainlanguage/rainix/.github/workflows/rainix-sol-legal.yaml@main
