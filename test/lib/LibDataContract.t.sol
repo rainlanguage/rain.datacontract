@@ -150,4 +150,141 @@ contract DataContractTest is Test {
         }
         assertEq(firstByte, 0);
     }
+
+    /// Deterministically deploy a data contract from `data` and return its
+    /// address. Used by the boundary tests below that need a concrete, known
+    /// input rather than a fuzzed one.
+    function deploy(bytes memory data) internal returns (address dataContract) {
+        bytes memory creationCode = LibDataContract.contractCreationCode(data);
+        assembly ("memory-safe") {
+            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
+        }
+        // Deployment of valid creation code must succeed.
+        assertTrue(dataContract != address(0));
+    }
+
+    /// Writing empty data MUST produce a valid (non-empty due to the 0x00
+    /// prefix) data contract whose `read` returns empty bytes WITHOUT reverting.
+    /// This pins the lower boundary of the `read` size guard: a deployed empty
+    /// container has `extcodesize == 1` (just the prefix byte), which is a valid
+    /// read returning zero bytes, and is distinct from a non-contract address
+    /// (`extcodesize == 0`) which MUST revert. Mutating the guard to e.g.
+    /// `size == 1` would wrongly revert here.
+    function testReadEmptyData() external {
+        address dataContract = deploy("");
+
+        // The container itself is one byte: the 0x00 prefix.
+        assertEq(dataContract.code.length, 1);
+
+        bytes memory round = LibDataContract.read(dataContract);
+        assertEq(round.length, 0);
+        assertEq(round, "");
+
+        // A full-width zero-length slice over the empty contract is also valid
+        // and returns empty bytes.
+        bytes memory slice = LibDataContract.readSlice(dataContract, 0, 0);
+        assertEq(slice.length, 0);
+        assertEq(slice, "");
+    }
+
+    /// Reading a non-contract address (`extcodesize == 0`) MUST revert, even
+    /// though writing empty data (above) is valid. This pins the size guard to
+    /// exactly zero rather than any positive value.
+    function testReadZeroCodeReverts() external {
+        // Precompute an address with no code.
+        address noCode = address(uint160(uint256(keccak256("definitely-not-a-data-contract"))));
+        assertEq(noCode.code.length, 0);
+
+        vm.expectRevert(ReadError.selector);
+        this.readExternal(noCode);
+    }
+
+    /// The largest data that fits is `type(uint16).max - 1` bytes (the GTE guard
+    /// reserves one slot for the prepended 0x00 byte so the embedded uint16
+    /// length `data.length + 1` does not overflow). Round-tripping at exactly
+    /// this boundary exercises the full 2-byte length field of the prefix
+    /// (`shl(232, data.length + 1)`) and the prefix copy offset, which fuzzing
+    /// over arbitrary `bytes` effectively never reaches.
+    function testRoundLargestData() external {
+        uint256 maxLength = uint256(type(uint16).max) - 1;
+        bytes memory data = new bytes(maxLength);
+        // Fill with a non-zero, position-dependent pattern so any byte shift or
+        // truncation is observable.
+        for (uint256 i = 0; i < maxLength; i++) {
+            data[i] = bytes1(uint8((i % 255) + 1));
+        }
+
+        address dataContract = deploy(data);
+        // Container is the data plus the single 0x00 prefix byte.
+        assertEq(dataContract.code.length, maxLength + 1);
+
+        bytes memory round = LibDataContract.read(dataContract);
+        assertEq(round.length, maxLength);
+        assertEq(round, data);
+
+        // Read the final byte via a slice to pin the high end of the offset/
+        // length math at the maximum size.
+        bytes memory lastByte = LibDataContract.readSlice(dataContract, uint16(maxLength - 1), 1);
+        assertEq(lastByte.length, 1);
+        assertEq(lastByte[0], data[maxLength - 1]);
+    }
+
+    /// `contractCreationCode` MUST accept the largest valid length
+    /// (`type(uint16).max - 1`) and reject `type(uint16).max`. This pins the
+    /// GTE (`>=`) boundary of the `DataTooLarge` guard from the accepted side;
+    /// the existing revert test only covers the rejected side.
+    function testContractCreationCodeLargestAccepted() external pure {
+        // Largest accepted length does not revert.
+        bytes memory ok = new bytes(uint256(type(uint16).max) - 1);
+        LibDataContract.contractCreationCode(ok);
+    }
+
+    function testContractCreationCodeSmallestRejected() external {
+        // Smallest rejected length reverts.
+        uint256 tooLarge = uint256(type(uint16).max);
+        vm.expectRevert(abi.encodeWithSelector(LibDataContract.DataTooLarge.selector, tooLarge));
+        this.contractCreationCodeVeryLargeData(tooLarge);
+    }
+
+    /// Reading a slice that ends exactly at the end of the data is valid and
+    /// returns the tail bytes; reading one byte further MUST revert. This pins
+    /// the `size < end` bounds check at its exact boundary deterministically
+    /// (rather than relying on a fuzzed slice happening to land on the end).
+    function testReadSliceExactEndBoundary() external {
+        bytes memory data = hex"00112233445566778899aabbccddeeff";
+        address dataContract = deploy(data);
+        uint16 len = uint16(data.length);
+
+        // Slice covering the whole contract ending exactly at the end: valid.
+        bytes memory whole = LibDataContract.readSlice(dataContract, 0, len);
+        assertEq(whole, data);
+
+        // Slice of the final single byte ending exactly at the end: valid.
+        bytes memory tail = LibDataContract.readSlice(dataContract, len - 1, 1);
+        assertEq(tail.length, 1);
+        assertEq(tail[0], data[len - 1]);
+
+        // One byte past the end MUST revert.
+        vm.expectRevert(ReadError.selector);
+        this.readSliceExternal(dataContract, len - 1, 2);
+    }
+
+    /// `read` MUST skip the injected 0x00 prefix byte and return only the data,
+    /// even when the first data byte is itself non-zero. This pins the read
+    /// offset (`extcodecopy ... 1 ...`) to skip exactly one byte: a known
+    /// non-zero leading data byte must appear at index 0 of the result.
+    function testReadSkipsPrefixExactly() external {
+        bytes memory data = hex"aabbccdd";
+        address dataContract = deploy(data);
+
+        bytes memory round = LibDataContract.read(dataContract);
+        assertEq(round, data);
+        // First returned byte is the first data byte, not the 0x00 prefix.
+        assertEq(round[0], bytes1(0xaa));
+
+        // Same via readSlice from offset 0.
+        bytes memory slice = LibDataContract.readSlice(dataContract, 0, uint16(data.length));
+        assertEq(slice, data);
+        assertEq(slice[0], bytes1(0xaa));
+    }
 }
