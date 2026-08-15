@@ -7,6 +7,7 @@
 .pre-commit-config.yaml
 .soldeerignore
 .vscode
+CLAUDE.md
 /audit
 /broadcast
 /cache
@@ -19,4 +20,5 @@
 /remappings.txt
 /slither.config.json
 /soldeer.lock
+/target
 /test
