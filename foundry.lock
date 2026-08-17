@@ -1,8 +1,0 @@
-{
-  "lib/forge-std": {
-    "rev": "1801b0541f4fda118a10798fd3486bb7051c5dd6"
-  },
-  "lib/rain.solmem": {
-    "rev": "2e47e41af85a711d837b2518656db0efdae814c2"
-  }
-}
