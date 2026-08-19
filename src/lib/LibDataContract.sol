@@ -28,8 +28,10 @@ import {ReadError, DataTooLarge} from "../error/ErrDataContract.sol";
 /// Note also typo 0x63XXXXXX which indicates 3 bytes but instead 4 are used as
 /// 0x64XXXXXXXX.
 ///
-/// Note also that we don't need 4 bytes to represent the size of a contract as
-/// 24kb is the max PUSH2 (0x61) can be used instead of PUSH4 for code length.
+/// Note also that we don't need 4 bytes to represent the size of the contract
+/// as `contractCreationCode` guards the embedded length (`data.length + 1`) to
+/// fit in a uint16, so PUSH2 (0x61) can be used instead of PUSH4 for code
+/// length.
 /// This also changes the 0x600e to 0x600c as we've reduced prefix size by 2
 /// relative to reference implementation.
 /// https://github.com/0xsequence/sstore2/pull/5/files
@@ -72,7 +74,11 @@ library LibDataContract {
     /// a deterministic deployment proxy. Usual considerations such as checking
     /// the success of contract creation after deployment all apply.
     /// @param data The data to be included in the deployed contract. This can be
-    /// any data that fits in the EVM code size limit for contracts (24kb).
+    /// any data up to 65534 bytes (`type(uint16).max - 1`, as the embedded
+    /// uint16 length is `data.length + 1` for the prepended zero byte). Whether
+    /// the creation code can actually be deployed is subject to the target
+    /// chain's code size limit, e.g. EIP-170 chains cap runtime code at 24576
+    /// bytes so at most 24575 bytes of data are deployable there.
     /// @return creationCode The creation code that can be deployed to create a
     /// contract containing the data.
     function contractCreationCode(bytes memory data) internal pure returns (bytes memory creationCode) {
