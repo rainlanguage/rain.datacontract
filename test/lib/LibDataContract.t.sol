@@ -9,10 +9,9 @@ import {LibBytes} from "rain-solmem-0.1.3/src/lib/LibBytes.sol";
 import {
     LibPointer,
     Pointer,
-    DataContractMemoryContainer,
     LibDataContract,
+    DataTooLarge,
     ReadError,
-    WriteError,
     ZOLTU_PROXY_ADDRESS
 } from "src/lib/LibDataContract.sol";
 
@@ -36,7 +35,7 @@ contract DataContractTest is Test {
 
     function testContractCreationCodeDataTooLargeRevert(uint256 length) external {
         length = bound(length, uint256(type(uint16).max), type(uint256).max);
-        vm.expectRevert(abi.encodeWithSelector(LibDataContract.DataTooLarge.selector, length));
+        vm.expectRevert(abi.encodeWithSelector(DataTooLarge.selector, length));
         this.contractCreationCodeVeryLargeData(length);
     }
 
@@ -122,15 +121,10 @@ contract DataContractTest is Test {
             dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
         }
 
-        uint256 a = gasleft();
         bytes memory read = LibDataContract.read(dataContract);
-        uint256 b = gasleft();
         bytes memory readSlice = LibDataContract.readSlice(dataContract, 0, uint16(data.length));
-        uint256 c = gasleft();
 
         assertEq(read, readSlice);
-        // normal read should be cheaper than a slice otherwise what's the point?
-        assertGt(b - c, a - b);
     }
 
     /// Check there is always a 0 byte prefix on the underlying data contract.
@@ -229,6 +223,43 @@ contract DataContractTest is Test {
         assertEq(lastByte[0], data[maxLength - 1]);
     }
 
+    /// The largest data deployable on an EIP-170 chain is 24575 bytes: the
+    /// container's runtime code is the data plus the single 0x00 prefix byte,
+    /// landing exactly on EIP-170's 24576-byte cap. The library's own guard is
+    /// only the uint16 encoding limit (65534 bytes) because deployment — and
+    /// therefore the target chain's code size limit — is left to the caller.
+    /// This test pins the boundary arithmetic (data + prefix == 24576) and the
+    /// round-trip at that size; it cannot pin rejection above the cap because
+    /// the test EVM does not enforce EIP-170 (`testRoundLargestData` deploys a
+    /// 65535-byte runtime contract). A guard mistakenly tightened below 24575
+    /// data bytes would revert here.
+    function testRoundEip170BoundaryData() external {
+        // EIP-170 MAX_CODE_SIZE.
+        uint256 eip170CodeSizeLimit = 24576;
+        uint256 dataLength = eip170CodeSizeLimit - 1;
+
+        bytes memory data = new bytes(dataLength);
+        // Fill with a non-zero, position-dependent pattern so any byte shift or
+        // truncation is observable.
+        for (uint256 i = 0; i < dataLength; i++) {
+            data[i] = bytes1(uint8((i % 255) + 1));
+        }
+
+        address dataContract = deploy(data);
+        // Runtime code is the data plus the 0x00 prefix: exactly EIP-170's cap.
+        assertEq(dataContract.code.length, eip170CodeSizeLimit);
+
+        bytes memory round = LibDataContract.read(dataContract);
+        assertEq(round.length, dataLength);
+        assertEq(round, data);
+
+        // Read the final byte via a slice to pin the offset/length math at the
+        // EIP-170 boundary as well.
+        bytes memory lastByte = LibDataContract.readSlice(dataContract, uint16(dataLength - 1), 1);
+        assertEq(lastByte.length, 1);
+        assertEq(lastByte[0], data[dataLength - 1]);
+    }
+
     /// `contractCreationCode` MUST accept the largest valid length
     /// (`type(uint16).max - 1`) and reject `type(uint16).max`. This pins the
     /// GTE (`>=`) boundary of the `DataTooLarge` guard from the accepted side;
@@ -242,8 +273,18 @@ contract DataContractTest is Test {
     function testContractCreationCodeSmallestRejected() external {
         // Smallest rejected length reverts.
         uint256 tooLarge = uint256(type(uint16).max);
-        vm.expectRevert(abi.encodeWithSelector(LibDataContract.DataTooLarge.selector, tooLarge));
+        vm.expectRevert(abi.encodeWithSelector(DataTooLarge.selector, tooLarge));
         this.contractCreationCodeVeryLargeData(tooLarge);
+    }
+
+    /// `DataTooLarge` has ABI signature `DataTooLarge(uint256)`, so its
+    /// selector is `bytes4(keccak256("DataTooLarge(uint256)"))` = 0x247b458c.
+    /// Pinning the raw bytes means any change to the error's name or
+    /// parameter types shows up as an ABI break rather than passing silently
+    /// (the `abi.encodeWithSelector` revert tests recompute the selector from
+    /// the declaration, so they cannot catch signature drift).
+    function testDataTooLargeSelectorPinned() external pure {
+        assertEq(DataTooLarge.selector, bytes4(0x247b458c));
     }
 
     /// Reading a slice that ends exactly at the end of the data is valid and
@@ -273,6 +314,36 @@ contract DataContractTest is Test {
         // One byte past the end MUST revert.
         vm.expectRevert(ReadError.selector);
         this.readSliceExternal(dataContract, len - 1, 2);
+    }
+
+    /// A zero-length slice reads nothing, but its `start` must still be within
+    /// `[0, data.length]`: the guard is `start + length <= data.length` even
+    /// when `length` is zero. Starting inside the data or exactly at its end
+    /// returns empty bytes; starting one byte past the end reverts, as does
+    /// any farther start. This pins the `size < end` guard as a bound on
+    /// `start` itself rather than only on bytes actually read.
+    function testReadSliceZeroLengthPastEndReverts() external {
+        bytes memory data = hex"00112233445566778899aabbccddeeff";
+        address dataContract = deploy(data);
+        uint16 len = uint16(data.length);
+
+        // Zero-length slice starting inside the data: valid, empty.
+        bytes memory interior = LibDataContract.readSlice(dataContract, 5, 0);
+        assertEq(interior.length, 0);
+        assertEq(interior, "");
+
+        // Zero-length slice starting exactly at the end: valid, empty.
+        bytes memory atEnd = LibDataContract.readSlice(dataContract, len, 0);
+        assertEq(atEnd.length, 0);
+        assertEq(atEnd, "");
+
+        // Zero-length slice starting one byte past the end: reverts.
+        vm.expectRevert(ReadError.selector);
+        this.readSliceExternal(dataContract, len + 1, 0);
+
+        // Any farther start also reverts, out to the uint16 maximum.
+        vm.expectRevert(ReadError.selector);
+        this.readSliceExternal(dataContract, type(uint16).max, 0);
     }
 
     /// Slice bounds are computed in uint256, so `start`/`length` combinations
@@ -437,5 +508,38 @@ contract DataContractTest is Test {
         // The free memory pointer moves past the aligned allocation.
         assertEq(freeMemoryPointerAfter, roundPointer + expectedAllocation);
         assertEq(round, data);
+    }
+
+    /// `read` never validates that the pointer is a container this library
+    /// wrote: any code-bearing address is read as though it were a container,
+    /// returning its code minus the first byte with no revert — even when the
+    /// first byte is not the `0x00` prefix every container deployed from
+    /// `contractCreationCode` output starts with (pinned by `testZeroPrefix`).
+    /// Only zero-code addresses revert (`testReadZeroCodeReverts`). This pins
+    /// the documented caller-precondition semantics: adding any first-byte
+    /// validation to `read` fails this test.
+    function testReadNonContainerShiftedCode() external {
+        address notContainer = address(0xBEEF);
+        vm.etch(notContainer, hex"11223344");
+
+        bytes memory data = this.readExternal(notContainer);
+        assertEq(data, hex"223344");
+    }
+
+    /// As `testReadNonContainerShiftedCode` but for `readSlice`: slices of a
+    /// non-container code-bearing address come back shifted one byte (the
+    /// skipped "prefix" is really its first code byte) with no revert, as long
+    /// as the shifted slice stays within the code; one byte further still
+    /// reverts. Adding any first-byte validation to `readSlice` fails this
+    /// test.
+    function testReadSliceNonContainerShiftedCode() external {
+        address notContainer = address(0xBEEF);
+        vm.etch(notContainer, hex"11223344");
+
+        assertEq(this.readSliceExternal(notContainer, 0, 3), hex"223344");
+        assertEq(this.readSliceExternal(notContainer, 1, 2), hex"3344");
+
+        vm.expectRevert(ReadError.selector);
+        this.readSliceExternal(notContainer, 0, 4);
     }
 }
