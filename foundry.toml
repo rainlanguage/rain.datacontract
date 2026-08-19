@@ -6,7 +6,7 @@
 # `forge config --fix` rewrites into `[profile.*]`.
 [external.package]
 name = "rain-datacontract"
-version = "0.1.2"
+version = "0.1.3"
 
 [profile.default]
 libs = ["dependencies"]
