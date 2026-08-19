@@ -338,6 +338,68 @@ contract DataContractTest is Test {
         assertEq(slice[0], bytes1(0xaa));
     }
 
+    /// `contractCreationCode` MUST allocate its output exactly as Solidity
+    /// allocates `bytes`: the returned pointer is the free memory pointer at
+    /// the time of the call, and afterwards the free memory pointer sits one
+    /// 32-byte length word plus the word-padded content (13 prefix bytes +
+    /// data) further on. Any other accounting either breaks word alignment for
+    /// subsequent allocations or lets a later allocation overlap the creation
+    /// code.
+    function testContractCreationCodeMemoryAccounting() external pure {
+        // Lengths chosen so prefix + data is: below one word (13, 17 bytes),
+        // exactly one word (13 + 19 = 32, padding is a no-op), and a
+        // non-aligned multi-word size (64 < 13 + 60 = 73 < 96).
+        uint256[4] memory lengths = [uint256(0), 4, 19, 60];
+        for (uint256 i = 0; i < lengths.length; i++) {
+            bytes memory data = new bytes(lengths[i]);
+            uint256 freeMemoryPointerBefore;
+            assembly ("memory-safe") {
+                freeMemoryPointerBefore := mload(0x40)
+            }
+            bytes memory creationCode = LibDataContract.contractCreationCode(data);
+            uint256 freeMemoryPointerAfter;
+            uint256 creationCodePointer;
+            assembly ("memory-safe") {
+                freeMemoryPointerAfter := mload(0x40)
+                creationCodePointer := creationCode
+            }
+            uint256 contentLength = 13 + lengths[i];
+            // Allocation starts at the old free memory pointer.
+            assertEq(creationCodePointer, freeMemoryPointerBefore);
+            // Output is the 13-byte prefix plus the data.
+            assertEq(creationCode.length, contentLength);
+            // Free memory pointer advances by the length word plus the
+            // content rounded up to whole words.
+            assertEq(freeMemoryPointerAfter, freeMemoryPointerBefore + 0x20 + ((contentLength + 31) / 32) * 32);
+        }
+    }
+
+    /// Memory allocated AFTER `contractCreationCode` returns MUST NOT overlap
+    /// the creation code: the creation code survives a subsequent dirtying
+    /// allocation byte-for-byte and still deploys a contract that round-trips
+    /// the data.
+    function testContractCreationCodeSurvivesLaterAllocation() external {
+        bytes memory data = hex"00112233445566778899aabbccddeeff";
+        bytes memory creationCode = LibDataContract.contractCreationCode(data);
+        bytes32 creationCodeHash = keccak256(creationCode);
+
+        // Allocate and dirty fresh memory; a correct allocator has placed
+        // this strictly after the creation code.
+        bytes memory noise = new bytes(96);
+        for (uint256 i = 0; i < noise.length; i++) {
+            noise[i] = 0xff;
+        }
+
+        assertEq(keccak256(creationCode), creationCodeHash);
+
+        address dataContract;
+        assembly ("memory-safe") {
+            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
+        }
+        assertTrue(dataContract != address(0));
+        assertEq(LibDataContract.read(dataContract), data);
+    }
+
     /// `read` allocates its output at the free memory pointer and MUST bump
     /// the pointer past the allocation, rounded up to a 32-byte boundary as
     /// Solidity's allocator requires: length word plus data, padded. An
