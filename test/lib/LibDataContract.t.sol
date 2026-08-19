@@ -229,6 +229,43 @@ contract DataContractTest is Test {
         assertEq(lastByte[0], data[maxLength - 1]);
     }
 
+    /// The largest data deployable on an EIP-170 chain is 24575 bytes: the
+    /// container's runtime code is the data plus the single 0x00 prefix byte,
+    /// landing exactly on EIP-170's 24576-byte cap. The library's own guard is
+    /// only the uint16 encoding limit (65534 bytes) because deployment — and
+    /// therefore the target chain's code size limit — is left to the caller.
+    /// This test pins the boundary arithmetic (data + prefix == 24576) and the
+    /// round-trip at that size; it cannot pin rejection above the cap because
+    /// the test EVM does not enforce EIP-170 (`testRoundLargestData` deploys a
+    /// 65535-byte runtime contract). A guard mistakenly tightened below 24575
+    /// data bytes would revert here.
+    function testRoundEip170BoundaryData() external {
+        // EIP-170 MAX_CODE_SIZE.
+        uint256 eip170CodeSizeLimit = 24576;
+        uint256 dataLength = eip170CodeSizeLimit - 1;
+
+        bytes memory data = new bytes(dataLength);
+        // Fill with a non-zero, position-dependent pattern so any byte shift or
+        // truncation is observable.
+        for (uint256 i = 0; i < dataLength; i++) {
+            data[i] = bytes1(uint8((i % 255) + 1));
+        }
+
+        address dataContract = deploy(data);
+        // Runtime code is the data plus the 0x00 prefix: exactly EIP-170's cap.
+        assertEq(dataContract.code.length, eip170CodeSizeLimit);
+
+        bytes memory round = LibDataContract.read(dataContract);
+        assertEq(round.length, dataLength);
+        assertEq(round, data);
+
+        // Read the final byte via a slice to pin the offset/length math at the
+        // EIP-170 boundary as well.
+        bytes memory lastByte = LibDataContract.readSlice(dataContract, uint16(dataLength - 1), 1);
+        assertEq(lastByte.length, 1);
+        assertEq(lastByte[0], data[dataLength - 1]);
+    }
+
     /// `contractCreationCode` MUST accept the largest valid length
     /// (`type(uint16).max - 1`) and reject `type(uint16).max`. This pins the
     /// GTE (`>=`) boundary of the `DataTooLarge` guard from the accepted side;
