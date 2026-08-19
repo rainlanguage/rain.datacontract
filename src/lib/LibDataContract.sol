@@ -4,7 +4,7 @@ pragma solidity ^0.8.25;
 
 // forge-lint: disable-next-line(unused-import)
 import {LibPointer, Pointer} from "rain-solmem-0.1.3/src/lib/LibPointer.sol";
-import {WriteError, ReadError} from "../error/ErrDataContract.sol";
+import {ReadError, DataTooLarge} from "../error/ErrDataContract.sol";
 
 /// @dev SSTORE2 Verbatim original reference
 /// https://github.com/0xsequence/sstore2/blob/master/contracts/utils/Bytecode.sol#L15
@@ -28,8 +28,10 @@ import {WriteError, ReadError} from "../error/ErrDataContract.sol";
 /// Note also typo 0x63XXXXXX which indicates 3 bytes but instead 4 are used as
 /// 0x64XXXXXXXX.
 ///
-/// Note also that we don't need 4 bytes to represent the size of a contract as
-/// 24kb is the max PUSH2 (0x61) can be used instead of PUSH4 for code length.
+/// Note also that we don't need 4 bytes to represent the size of the contract
+/// as `contractCreationCode` guards the embedded length (`data.length + 1`) to
+/// fit in a uint16, so PUSH2 (0x61) can be used instead of PUSH4 for code
+/// length.
 /// This also changes the 0x600e to 0x600c as we've reduced prefix size by 2
 /// relative to reference implementation.
 /// https://github.com/0xsequence/sstore2/pull/5/files
@@ -54,12 +56,6 @@ uint256 constant PREFIX_BYTES_LENGTH = 13;
 /// https://github.com/Zoltu/deterministic-deployment-proxy?tab=readme-ov-file#proxy-address
 address constant ZOLTU_PROXY_ADDRESS = 0x7A0D94F55792C434d74a40883C6ed8545E406D12;
 
-/// A container is a region of memory that is directly deployable with `create`,
-/// without length prefixes or other Solidity type trappings. Where the length is
-/// needed, such as in `write` it can be read as bytes `[1,2]` from the prefix.
-/// This is just a pointer but given a new type to help avoid mistakes.
-type DataContractMemoryContainer is uint256;
-
 /// @title DataContract
 ///
 /// DataContract is a simplified reimplementation of
@@ -70,19 +66,7 @@ type DataContractMemoryContainer is uint256;
 /// - Assembly optimisations for less gas usage
 /// - Not shipped with other unrelated code to reduce dependency bloat
 /// - Fuzzed with foundry
-///
-/// It is a little more low level in that it doesn't work on `bytes` from
-/// Solidity but instead requires the caller to copy memory directy by pointer.
-/// https://github.com/rainprotocol/sol.lib.bytes can help with that.
 library LibDataContract {
-    /// Thrown when data is too large to build container creation code for.
-    /// The creation code embeds `data.length + 1` as the PUSH2 code length
-    /// (the deployed container prepends a `0x00` byte), so any
-    /// `data.length >= type(uint16).max` reverts.
-    /// @param dataLength The length of the data that was attempted to create a
-    /// contract with.
-    error DataTooLarge(uint256 dataLength);
-
     /// Given some data in memory, prepares the creation code for a contract that
     /// will contain that data when deployed. The caller is responsible for
     /// actually deploying the creation code, which should be compatible with any
@@ -90,7 +74,11 @@ library LibDataContract {
     /// a deterministic deployment proxy. Usual considerations such as checking
     /// the success of contract creation after deployment all apply.
     /// @param data The data to be included in the deployed contract. This can be
-    /// any data that fits in the EVM code size limit for contracts (24kb).
+    /// any data up to 65534 bytes (`type(uint16).max - 1`, as the embedded
+    /// uint16 length is `data.length + 1` for the prepended zero byte). Whether
+    /// the creation code can actually be deployed is subject to the target
+    /// chain's code size limit, e.g. EIP-170 chains cap runtime code at 24576
+    /// bytes so at most 24575 bytes of data are deployable there.
     /// @return creationCode The creation code that can be deployed to create a
     /// contract containing the data.
     function contractCreationCode(bytes memory data) internal pure returns (bytes memory creationCode) {
@@ -127,13 +115,22 @@ library LibDataContract {
         }
     }
 
-    /// Reads data back from a previously deployed container.
+    /// Reads data back from a previously deployed data contract.
     /// Almost verbatim Solidity docs.
     /// https://docs.soliditylang.org/en/v0.8.17/assembly.html#example
     /// Notable difference is that we skip the first byte when we read as it is
-    /// a `0x00` prefix injected by containers on deploy.
-    /// @param pointer The address of the data contract to read from. MUST have
-    /// a leading byte that can be safely ignored.
+    /// a `0x00` prefix that `contractCreationCode` bakes into the deployed
+    /// code.
+    ///
+    /// The first byte is skipped unconditionally and never inspected, so
+    /// nothing here distinguishes a data contract from any other code-bearing
+    /// address. Reading an address that is not a data contract silently
+    /// returns its code minus the first byte as though it were data; only an
+    /// address with no code at all reverts with `ReadError`.
+    /// @param pointer The address of the data contract to read from. MUST be a
+    /// data contract deployed from `contractCreationCode` output (or an
+    /// equivalent scheme whose leading byte can be safely ignored); this is the
+    /// caller's responsibility and is never checked here.
     /// @return data The data read from the data contract. First byte is skipped
     /// and contract is read completely to the end.
     function read(address pointer) internal view returns (bytes memory data) {
@@ -162,6 +159,15 @@ library LibDataContract {
 
     /// Hybrid of address-only read, SSTORE2 read and Solidity docs.
     /// Unlike SSTORE2, reading past the end of the data contract WILL REVERT.
+    /// The bound applies to `start` itself, not only to bytes actually read:
+    /// `start + length <= data.length` must hold even when `length` is zero,
+    /// so a zero-length slice is valid only for `start` in `[0, data.length]`
+    /// and reverts when `start` is past the end of the data.
+    ///
+    /// As with `read`, the pointer is never validated: any address bearing
+    /// enough code for the requested slice is sliced as though it were a
+    /// data contract (offsets shifted one byte past its first code byte) without
+    /// reverting.
     /// @param pointer As per `read`.
     /// @param start Starting offset for reads from the data contract.
     /// @param length Number of bytes to read.
