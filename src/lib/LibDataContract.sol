@@ -4,7 +4,7 @@ pragma solidity ^0.8.25;
 
 // forge-lint: disable-next-line(unused-import)
 import {LibPointer, Pointer} from "rain-solmem-0.1.3/src/lib/LibPointer.sol";
-import {WriteError, ReadError} from "../error/ErrDataContract.sol";
+import {ReadError} from "../error/ErrDataContract.sol";
 
 /// @dev SSTORE2 Verbatim original reference
 /// https://github.com/0xsequence/sstore2/blob/master/contracts/utils/Bytecode.sol#L15
@@ -54,12 +54,6 @@ uint256 constant PREFIX_BYTES_LENGTH = 13;
 /// https://github.com/Zoltu/deterministic-deployment-proxy?tab=readme-ov-file#proxy-address
 address constant ZOLTU_PROXY_ADDRESS = 0x7A0D94F55792C434d74a40883C6ed8545E406D12;
 
-/// A container is a region of memory that is directly deployable with `create`,
-/// without length prefixes or other Solidity type trappings. Where the length is
-/// needed, such as in `write` it can be read as bytes `[1,2]` from the prefix.
-/// This is just a pointer but given a new type to help avoid mistakes.
-type DataContractMemoryContainer is uint256;
-
 /// @title DataContract
 ///
 /// DataContract is a simplified reimplementation of
@@ -70,10 +64,6 @@ type DataContractMemoryContainer is uint256;
 /// - Assembly optimisations for less gas usage
 /// - Not shipped with other unrelated code to reduce dependency bloat
 /// - Fuzzed with foundry
-///
-/// It is a little more low level in that it doesn't work on `bytes` from
-/// Solidity but instead requires the caller to copy memory directy by pointer.
-/// https://github.com/rainprotocol/sol.lib.bytes can help with that.
 library LibDataContract {
     /// Thrown when trying to write data that is too large to fit in uint16.
     /// @param dataLength The length of the data that was attempted to create a
@@ -124,11 +114,12 @@ library LibDataContract {
         }
     }
 
-    /// Reads data back from a previously deployed container.
+    /// Reads data back from a previously deployed data contract.
     /// Almost verbatim Solidity docs.
     /// https://docs.soliditylang.org/en/v0.8.17/assembly.html#example
     /// Notable difference is that we skip the first byte when we read as it is
-    /// a `0x00` prefix injected by containers on deploy.
+    /// a `0x00` prefix that `contractCreationCode` bakes into the deployed
+    /// code.
     /// @param pointer The address of the data contract to read from. MUST have
     /// a leading byte that can be safely ignored.
     /// @return data The data read from the data contract. First byte is skipped
