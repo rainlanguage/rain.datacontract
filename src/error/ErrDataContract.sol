@@ -5,5 +5,6 @@ pragma solidity ^0.8.25;
 /// Thrown if writing the data by creating the contract fails somehow.
 error WriteError();
 
-/// Thrown if reading a zero length address.
+/// Thrown when reading an address with no code, or a slice extending past
+/// the end of the data.
 error ReadError();
