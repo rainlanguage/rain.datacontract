@@ -86,3 +86,9 @@ replacement = """data := 0
             // New "memory end" including padding.
             // Compiler will optimise away the double constant addition.
             mstore(0x40, add(data, and(add(add(length, 0x20), 0x1f), not(0x1f))))"""
+
+[[mutants]]
+name = "C13 bounds guard compares end not offset"
+file = "src/lib/LibDataContract.sol"
+target = "if (size < end) revert ReadError();"
+replacement = "if (size < offset) revert ReadError();"
