@@ -52,10 +52,19 @@ Use the nix-pinned `forge` for all development.
 
 ## Publish
 
-Tag `v<x.y.z>` on `main`. The
-[`Publish to Soldeer`](.github/workflows/publish-soldeer.yaml) wrapper delegates
-to rainix's reusable workflow, which derives the package name from the repo name
-(`rain.datacontract` → `rain-datacontract`).
+Publishing is automated: every push to `main` runs the
+[`Package Release`](.github/workflows/package-release.yaml) workflow, which
+delegates to rainix's `rainix-autopublish` reusable workflow with the package
+name `rain-datacontract`.
+
+The version is `foundry.toml`'s `[external.package].version` — always the NEXT,
+not-yet-published version. A content gate compares what `forge soldeer push`
+would upload against the newest published zip: when the content differs, the
+workflow publishes that version to Soldeer, tags `sol-v<version>` with a GitHub
+release, and rewrites `[external.package].version` to the next unpublished
+version in a `Package Release` commit (which the workflow skips when it triggers
+itself). A push whose packaged content is unchanged publishes nothing — there is
+no manual tagging or version bump.
 
 ## License
 
