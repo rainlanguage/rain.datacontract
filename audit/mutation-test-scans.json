@@ -2,7 +2,7 @@
   {
     "timestamp": "2026-08-19T12:25:49Z",
     "commit": "67c4893d7d629a525f7d97c5b0751e5eb1181c2e",
-    "testsAfterCommit": null,
+    "testsAfterCommit": "da077edb075ab0b6b139dd0eb420f601c92b1c6d",
     "publishedTag": "v0.1.0",
     "commitsAheadOfTag": 13,
     "scope": "whole repo",
