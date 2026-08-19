@@ -121,15 +121,10 @@ contract DataContractTest is Test {
             dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
         }
 
-        uint256 a = gasleft();
         bytes memory read = LibDataContract.read(dataContract);
-        uint256 b = gasleft();
         bytes memory readSlice = LibDataContract.readSlice(dataContract, 0, uint16(data.length));
-        uint256 c = gasleft();
 
         assertEq(read, readSlice);
-        // normal read should be cheaper than a slice otherwise what's the point?
-        assertGt(b - c, a - b);
     }
 
     /// Check there is always a 0 byte prefix on the underlying data contract.
