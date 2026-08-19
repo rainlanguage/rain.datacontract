@@ -484,4 +484,37 @@ contract DataContractTest is Test {
         assertEq(freeMemoryPointerAfter, roundPointer + expectedAllocation);
         assertEq(round, data);
     }
+
+    /// `read` never validates that the pointer is a container this library
+    /// wrote: any code-bearing address is read as though it were a container,
+    /// returning its code minus the first byte with no revert — even when the
+    /// first byte is not the `0x00` prefix every container deployed from
+    /// `contractCreationCode` output starts with (pinned by `testZeroPrefix`).
+    /// Only zero-code addresses revert (`testReadZeroCodeReverts`). This pins
+    /// the documented caller-precondition semantics: adding any first-byte
+    /// validation to `read` fails this test.
+    function testReadNonContainerShiftedCode() external {
+        address notContainer = address(0xBEEF);
+        vm.etch(notContainer, hex"11223344");
+
+        bytes memory data = this.readExternal(notContainer);
+        assertEq(data, hex"223344");
+    }
+
+    /// As `testReadNonContainerShiftedCode` but for `readSlice`: slices of a
+    /// non-container code-bearing address come back shifted one byte (the
+    /// skipped "prefix" is really its first code byte) with no revert, as long
+    /// as the shifted slice stays within the code; one byte further still
+    /// reverts. Adding any first-byte validation to `readSlice` fails this
+    /// test.
+    function testReadSliceNonContainerShiftedCode() external {
+        address notContainer = address(0xBEEF);
+        vm.etch(notContainer, hex"11223344");
+
+        assertEq(this.readSliceExternal(notContainer, 0, 3), hex"223344");
+        assertEq(this.readSliceExternal(notContainer, 1, 2), hex"3344");
+
+        vm.expectRevert(ReadError.selector);
+        this.readSliceExternal(notContainer, 0, 4);
+    }
 }
