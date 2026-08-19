@@ -2,7 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity ^0.8.25;
 
-/// Thrown if reading a zero length address.
+/// Thrown when reading an address with no code, or a slice extending past
+/// the end of the data.
 error ReadError();
 
 /// Thrown when trying to write data that is too large to fit in uint16.
