@@ -50,10 +50,6 @@ uint256 constant BASE_PREFIX = 0x61_0000_80_600C_6000_39_6000_F3_00_000000000000
 /// contract.
 uint256 constant PREFIX_BYTES_LENGTH = 13;
 
-/// @dev Zoltu deterministic deployment proxy address.
-/// https://github.com/Zoltu/deterministic-deployment-proxy?tab=readme-ov-file#proxy-address
-address constant ZOLTU_PROXY_ADDRESS = 0x7A0D94F55792C434d74a40883C6ed8545E406D12;
-
 /// A container is a region of memory that is directly deployable with `create`,
 /// without length prefixes or other Solidity type trappings. Where the length is
 /// needed, such as in `write` it can be read as bytes `[1,2]` from the prefix.

@@ -12,8 +12,7 @@ import {
     DataContractMemoryContainer,
     LibDataContract,
     ReadError,
-    WriteError,
-    ZOLTU_PROXY_ADDRESS
+    WriteError
 } from "src/lib/LibDataContract.sol";
 
 /// @title DataContractTest
