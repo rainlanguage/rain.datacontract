@@ -129,8 +129,16 @@ library LibDataContract {
     /// https://docs.soliditylang.org/en/v0.8.17/assembly.html#example
     /// Notable difference is that we skip the first byte when we read as it is
     /// a `0x00` prefix injected by containers on deploy.
-    /// @param pointer The address of the data contract to read from. MUST have
-    /// a leading byte that can be safely ignored.
+    ///
+    /// The first byte is skipped unconditionally and never inspected, so
+    /// nothing here distinguishes a container from any other code-bearing
+    /// address. Reading an address that is not a data container silently
+    /// returns its code minus the first byte as though it were data; only an
+    /// address with no code at all reverts with `ReadError`.
+    /// @param pointer The address of the data contract to read from. MUST be a
+    /// container deployed from `contractCreationCode` output (or an equivalent
+    /// scheme whose leading byte can be safely ignored); this is the caller's
+    /// responsibility and is never checked here.
     /// @return data The data read from the data contract. First byte is skipped
     /// and contract is read completely to the end.
     function read(address pointer) internal view returns (bytes memory data) {
@@ -159,6 +167,10 @@ library LibDataContract {
 
     /// Hybrid of address-only read, SSTORE2 read and Solidity docs.
     /// Unlike SSTORE2, reading past the end of the data contract WILL REVERT.
+    /// As with `read`, the pointer is never validated: any address bearing
+    /// enough code for the requested slice is sliced as though it were a
+    /// container (offsets shifted one byte past its first code byte) without
+    /// reverting.
     /// @param pointer As per `read`.
     /// @param start Starting offset for reads from the data contract.
     /// @param length Number of bytes to read.
