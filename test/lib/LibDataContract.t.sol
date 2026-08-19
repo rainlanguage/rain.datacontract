@@ -275,6 +275,36 @@ contract DataContractTest is Test {
         this.readSliceExternal(dataContract, len - 1, 2);
     }
 
+    /// A zero-length slice reads nothing, but its `start` must still be within
+    /// `[0, data.length]`: the guard is `start + length <= data.length` even
+    /// when `length` is zero. Starting inside the data or exactly at its end
+    /// returns empty bytes; starting one byte past the end reverts, as does
+    /// any farther start. This pins the `size < end` guard as a bound on
+    /// `start` itself rather than only on bytes actually read.
+    function testReadSliceZeroLengthPastEndReverts() external {
+        bytes memory data = hex"00112233445566778899aabbccddeeff";
+        address dataContract = deploy(data);
+        uint16 len = uint16(data.length);
+
+        // Zero-length slice starting inside the data: valid, empty.
+        bytes memory interior = LibDataContract.readSlice(dataContract, 5, 0);
+        assertEq(interior.length, 0);
+        assertEq(interior, "");
+
+        // Zero-length slice starting exactly at the end: valid, empty.
+        bytes memory atEnd = LibDataContract.readSlice(dataContract, len, 0);
+        assertEq(atEnd.length, 0);
+        assertEq(atEnd, "");
+
+        // Zero-length slice starting one byte past the end: reverts.
+        vm.expectRevert(ReadError.selector);
+        this.readSliceExternal(dataContract, len + 1, 0);
+
+        // Any farther start also reverts, out to the uint16 maximum.
+        vm.expectRevert(ReadError.selector);
+        this.readSliceExternal(dataContract, type(uint16).max, 0);
+    }
+
     /// Slice bounds are computed in uint256, so `start`/`length` combinations
     /// whose (prefix-adjusted) end exceeds `type(uint16).max` MUST still be
     /// caught by the bounds guard. If the end were truncated to 16 bits,

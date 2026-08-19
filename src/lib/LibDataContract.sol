@@ -159,6 +159,10 @@ library LibDataContract {
 
     /// Hybrid of address-only read, SSTORE2 read and Solidity docs.
     /// Unlike SSTORE2, reading past the end of the data contract WILL REVERT.
+    /// The bound applies to `start` itself, not only to bytes actually read:
+    /// `start + length <= data.length` must hold even when `length` is zero,
+    /// so a zero-length slice is valid only for `start` in `[0, data.length]`
+    /// and reverts when `start` is past the end of the data.
     /// @param pointer As per `read`.
     /// @param start Starting offset for reads from the data contract.
     /// @param length Number of bytes to read.
