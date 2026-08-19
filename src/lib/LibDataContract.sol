@@ -171,6 +171,9 @@ library LibDataContract {
     /// @param pointer As per `read`.
     /// @param start Starting offset for reads from the data contract.
     /// @param length Number of bytes to read.
+    /// @return data `length` bytes copied from the data contract, starting at
+    /// data offset `start` (code offset `start + 1`; the `0x00` prefix byte is
+    /// not addressable).
     function readSlice(address pointer, uint16 start, uint16 length) internal view returns (bytes memory data) {
         uint256 size;
         // uint256 offset and end avoids overflow issues from uint16.
