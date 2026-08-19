@@ -264,9 +264,59 @@ contract DataContractTest is Test {
         assertEq(tail.length, 1);
         assertEq(tail[0], data[len - 1]);
 
+        // Zero-length slice starting exactly at the end of the data ends
+        // exactly at the end, so it is valid and returns empty bytes.
+        bytes memory empty = LibDataContract.readSlice(dataContract, len, 0);
+        assertEq(empty.length, 0);
+        assertEq(empty, "");
+
         // One byte past the end MUST revert.
         vm.expectRevert(ReadError.selector);
         this.readSliceExternal(dataContract, len - 1, 2);
+    }
+
+    /// Slice bounds are computed in uint256, so `start`/`length` combinations
+    /// whose (prefix-adjusted) end exceeds `type(uint16).max` MUST still be
+    /// caught by the bounds guard. If the end were truncated to 16 bits,
+    /// start 65535 with length 10 would give end 10, which fits inside this
+    /// small contract and would silently return zero-padded garbage from far
+    /// past the end of the code instead of reverting.
+    function testReadSliceEndNoUint16Wrap() external {
+        bytes memory data = hex"00112233445566778899aabbccddeeff";
+        address dataContract = deploy(data);
+
+        vm.expectRevert(ReadError.selector);
+        this.readSliceExternal(dataContract, type(uint16).max, 10);
+
+        // Maximum start and length together must also revert.
+        vm.expectRevert(ReadError.selector);
+        this.readSliceExternal(dataContract, type(uint16).max, type(uint16).max);
+    }
+
+    /// `readSlice` registers its output with the free memory pointer: the
+    /// bump covers the length word plus the data padded up to a whole 32-byte
+    /// word, keeping the pointer word-aligned so later allocations neither
+    /// start misaligned nor overlap the slice's final partial word. A 5 byte
+    /// slice therefore consumes exactly two words: one for the length and one
+    /// for the padded data.
+    function testReadSliceAllocationAlignedAndPadded() external {
+        bytes memory data = hex"00112233445566778899aabbccddeeff";
+        address dataContract = deploy(data);
+
+        bytes memory slice = LibDataContract.readSlice(dataContract, 3, 5);
+        uint256 slicePointer;
+        uint256 allocated;
+        // Capture the free memory pointer before any further allocations.
+        assembly ("memory-safe") {
+            slicePointer := slice
+            allocated := mload(0x40)
+        }
+
+        assertEq(slice, hex"3344556677");
+        // Free memory pointer stays 32-byte aligned after the allocation.
+        assertEq(allocated % 0x20, 0);
+        // Exactly one word for the length plus one word of padded data.
+        assertEq(allocated, slicePointer + 0x40);
     }
 
     /// `read` MUST skip the injected 0x00 prefix byte and return only the data,
