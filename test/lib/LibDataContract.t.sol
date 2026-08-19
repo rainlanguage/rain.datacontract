@@ -287,4 +287,43 @@ contract DataContractTest is Test {
         assertEq(slice, data);
         assertEq(slice[0], bytes1(0xaa));
     }
+
+    /// `read` allocates its output at the free memory pointer and MUST bump
+    /// the pointer past the allocation, rounded up to a 32-byte boundary as
+    /// Solidity's allocator requires: length word plus data, padded. An
+    /// unaligned or short bump would let the next allocation overlap the tail
+    /// of the returned bytes. Exact expected pointers per the convention:
+    /// empty data allocates just the length word (0x20); a 3-byte payload pads
+    /// its data region up to a full word (0x20 + 0x20); a 32-byte payload
+    /// needs no padding (0x20 + 0x20).
+    function testReadAllocationRegisteredAligned() external {
+        // Empty data: allocation is the zero length word only.
+        checkReadAllocation("", 0x20);
+        // Non-multiple-of-32 data: data region pads up to one full word.
+        checkReadAllocation(hex"aabbcc", 0x20 + 0x20);
+        // Exact-multiple data: no extra padding beyond the data itself.
+        checkReadAllocation(new bytes(32), 0x20 + 0x20);
+    }
+
+    function checkReadAllocation(bytes memory data, uint256 expectedAllocation) internal {
+        address dataContract = deploy(data);
+
+        uint256 freeMemoryPointerBefore;
+        assembly ("memory-safe") {
+            freeMemoryPointerBefore := mload(0x40)
+        }
+        bytes memory round = LibDataContract.read(dataContract);
+        uint256 freeMemoryPointerAfter;
+        uint256 roundPointer;
+        assembly ("memory-safe") {
+            freeMemoryPointerAfter := mload(0x40)
+            roundPointer := round
+        }
+
+        // The output is allocated exactly at the prior free memory pointer.
+        assertEq(roundPointer, freeMemoryPointerBefore);
+        // The free memory pointer moves past the aligned allocation.
+        assertEq(freeMemoryPointerAfter, roundPointer + expectedAllocation);
+        assertEq(round, data);
+    }
 }
