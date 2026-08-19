@@ -4,7 +4,7 @@ pragma solidity ^0.8.25;
 
 // forge-lint: disable-next-line(unused-import)
 import {LibPointer, Pointer} from "rain-solmem-0.1.3/src/lib/LibPointer.sol";
-import {ReadError} from "../error/ErrDataContract.sol";
+import {ReadError, DataTooLarge} from "../error/ErrDataContract.sol";
 
 /// @dev SSTORE2 Verbatim original reference
 /// https://github.com/0xsequence/sstore2/blob/master/contracts/utils/Bytecode.sol#L15
@@ -65,11 +65,6 @@ address constant ZOLTU_PROXY_ADDRESS = 0x7A0D94F55792C434d74a40883C6ed8545E406D1
 /// - Not shipped with other unrelated code to reduce dependency bloat
 /// - Fuzzed with foundry
 library LibDataContract {
-    /// Thrown when trying to write data that is too large to fit in uint16.
-    /// @param dataLength The length of the data that was attempted to create a
-    /// contract with.
-    error DataTooLarge(uint256 dataLength);
-
     /// Given some data in memory, prepares the creation code for a contract that
     /// will contain that data when deployed. The caller is responsible for
     /// actually deploying the creation code, which should be compatible with any

@@ -6,7 +6,14 @@ import {Test, console2} from "forge-std-1.16.1/src/Test.sol";
 import {LibMemCpy} from "rain-solmem-0.1.3/src/lib/LibMemCpy.sol";
 import {LibBytes} from "rain-solmem-0.1.3/src/lib/LibBytes.sol";
 
-import {LibPointer, Pointer, LibDataContract, ReadError, ZOLTU_PROXY_ADDRESS} from "src/lib/LibDataContract.sol";
+import {
+    LibPointer,
+    Pointer,
+    LibDataContract,
+    DataTooLarge,
+    ReadError,
+    ZOLTU_PROXY_ADDRESS
+} from "src/lib/LibDataContract.sol";
 
 /// @title DataContractTest
 /// Tests for serializing and deserializing data to and from an onchain data
@@ -28,7 +35,7 @@ contract DataContractTest is Test {
 
     function testContractCreationCodeDataTooLargeRevert(uint256 length) external {
         length = bound(length, uint256(type(uint16).max), type(uint256).max);
-        vm.expectRevert(abi.encodeWithSelector(LibDataContract.DataTooLarge.selector, length));
+        vm.expectRevert(abi.encodeWithSelector(DataTooLarge.selector, length));
         this.contractCreationCodeVeryLargeData(length);
     }
 
@@ -234,8 +241,18 @@ contract DataContractTest is Test {
     function testContractCreationCodeSmallestRejected() external {
         // Smallest rejected length reverts.
         uint256 tooLarge = uint256(type(uint16).max);
-        vm.expectRevert(abi.encodeWithSelector(LibDataContract.DataTooLarge.selector, tooLarge));
+        vm.expectRevert(abi.encodeWithSelector(DataTooLarge.selector, tooLarge));
         this.contractCreationCodeVeryLargeData(tooLarge);
+    }
+
+    /// `DataTooLarge` has ABI signature `DataTooLarge(uint256)`, so its
+    /// selector is `bytes4(keccak256("DataTooLarge(uint256)"))` = 0x247b458c.
+    /// Pinning the raw bytes means any change to the error's name or
+    /// parameter types shows up as an ABI break rather than passing silently
+    /// (the `abi.encodeWithSelector` revert tests recompute the selector from
+    /// the declaration, so they cannot catch signature drift).
+    function testDataTooLargeSelectorPinned() external pure {
+        assertEq(DataTooLarge.selector, bytes4(0x247b458c));
     }
 
     /// Reading a slice that ends exactly at the end of the data is valid and
