@@ -1,0 +1,70 @@
+[suite]
+root = "."
+command = ["nix", "develop", "-c", "forge", "test"]
+proof = '(\d+) passed; (\d+) failed'
+fail-pattern = '\[FAIL[^\]]*\] (\S+)'
+timeout-secs = 1800
+
+[[mutants]]
+name = "B01 size fetched via extcodesize"
+file = "src/lib/LibDataContract.sol"
+target = '''            size := extcodesize(pointer)
+        }
+        if (size == 0) revert ReadError();'''
+replacement = '''            size := 1
+        }
+        if (size == 0) revert ReadError();'''
+
+[[mutants]]
+name = "B02 zero-code guard reverts"
+file = "src/lib/LibDataContract.sol"
+target = "if (size == 0) revert ReadError();"
+replacement = "if (false) revert ReadError();"
+
+[[mutants]]
+name = "B03 zero-code guard exactly-zero not <=1"
+file = "src/lib/LibDataContract.sol"
+target = "if (size == 0) revert ReadError();"
+replacement = "if (size <= 1) revert ReadError();"
+
+[[mutants]]
+name = "B04 length is codesize minus one prefix byte"
+file = "src/lib/LibDataContract.sol"
+target = "size := sub(size, 1)"
+replacement = "size := sub(size, 0)"
+
+[[mutants]]
+name = "B05 FMP bump aligned and sized"
+file = "src/lib/LibDataContract.sol"
+target = "mstore(0x40, add(data, and(add(add(size, 0x20), 0x1f), not(0x1f))))"
+replacement = "mstore(0x40, add(data, add(size, 0x20)))"
+
+[[mutants]]
+name = "B06 FMP bumped at all"
+file = "src/lib/LibDataContract.sol"
+target = "mstore(0x40, add(data, and(add(add(size, 0x20), 0x1f), not(0x1f))))"
+replacement = "mstore(0x40, mload(0x40))"
+
+[[mutants]]
+name = "B07 length word stored"
+file = "src/lib/LibDataContract.sol"
+target = "mstore(data, size)"
+replacement = "mstore(data, 0)"
+
+[[mutants]]
+name = "B08 copy skips exactly one byte"
+file = "src/lib/LibDataContract.sol"
+target = "extcodecopy(pointer, add(data, 0x20), 1, size)"
+replacement = "extcodecopy(pointer, add(data, 0x20), 0, size)"
+
+[[mutants]]
+name = "B09 copy length is size"
+file = "src/lib/LibDataContract.sol"
+target = "extcodecopy(pointer, add(data, 0x20), 1, size)"
+replacement = "extcodecopy(pointer, add(data, 0x20), 1, 0)"
+
+[[mutants]]
+name = "B10 copy destination is data plus 0x20 not data"
+file = "src/lib/LibDataContract.sol"
+target = "extcodecopy(pointer, add(data, 0x20), 1, size)"
+replacement = "extcodecopy(pointer, data, 1, size)"
