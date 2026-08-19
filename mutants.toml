@@ -68,3 +68,15 @@ name = "B10 copy destination is data plus 0x20 not data"
 file = "src/lib/LibDataContract.sol"
 target = "extcodecopy(pointer, add(data, 0x20), 1, size)"
 replacement = "extcodecopy(pointer, data, 1, size)"
+
+[[mutants]]
+name = "B11 output allocated exactly at the free memory pointer"
+file = "src/lib/LibDataContract.sol"
+target = '''            size := sub(size, 1)
+            // Allocate output byte array - this could also be done without
+            // assembly by using data = new bytes(size)
+            data := mload(0x40)'''
+replacement = '''            size := sub(size, 1)
+            // Allocate output byte array - this could also be done without
+            // assembly by using data = new bytes(size)
+            data := add(mload(0x40), 0x20)'''
