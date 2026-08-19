@@ -1,4 +1,9 @@
 name: Package Release
+# One release run at a time per ref. A run mid-publish is never cancelled; a
+# pending run is superseded by a newer one.
+concurrency:
+  group: package-release-${{ github.ref }}
+  cancel-in-progress: false
 on:
   push:
     branches:
