@@ -1,0 +1,88 @@
+[suite]
+root = "."
+command = ["nix", "develop", "-c", "forge", "test"]
+proof = '(\d+) passed; (\d+) failed'
+fail-pattern = '\[FAIL[^\]]*\] (\S+)'
+timeout-secs = 1800
+
+[[mutants]]
+name = "C01 slice offset skips the prefix byte"
+file = "src/lib/LibDataContract.sol"
+target = "offset := add(start, 1)"
+replacement = "offset := start"
+
+[[mutants]]
+name = "C02 end accounts for the skipped byte"
+file = "src/lib/LibDataContract.sol"
+target = "end := add(offset, length)"
+replacement = "end := add(start, length)"
+
+[[mutants]]
+name = "C03 bounds guard allows exact-end slices"
+file = "src/lib/LibDataContract.sol"
+target = "if (size < end) revert ReadError();"
+replacement = "if (size <= end) revert ReadError();"
+
+[[mutants]]
+name = "C04 bounds guard exists"
+file = "src/lib/LibDataContract.sol"
+target = "if (size < end) revert ReadError();"
+replacement = "if (false) revert ReadError();"
+
+[[mutants]]
+name = "C05 end arithmetic is uint256 no uint16 wrap"
+file = "src/lib/LibDataContract.sol"
+target = "end := add(offset, length)"
+replacement = "end := and(add(offset, length), 0xffff)"
+
+[[mutants]]
+name = "C06 size fetched via extcodesize"
+file = "src/lib/LibDataContract.sol"
+target = """end := add(offset, length)
+            // Retrieve the size of the code, this needs assembly.
+            size := extcodesize(pointer)"""
+replacement = """end := add(offset, length)
+            // Retrieve the size of the code, this needs assembly.
+            size := 0xffffffff"""
+
+[[mutants]]
+name = "C07 free memory pointer bump aligned and sized from length"
+file = "src/lib/LibDataContract.sol"
+target = "mstore(0x40, add(data, and(add(add(length, 0x20), 0x1f), not(0x1f))))"
+replacement = "mstore(0x40, add(data, add(length, 0x20)))"
+
+[[mutants]]
+name = "C08 free memory pointer bumped at all"
+file = "src/lib/LibDataContract.sol"
+target = "mstore(0x40, add(data, and(add(add(length, 0x20), 0x1f), not(0x1f))))"
+replacement = "mstore(0x40, mload(0x40))"
+
+[[mutants]]
+name = "C09 length word stored"
+file = "src/lib/LibDataContract.sol"
+target = "mstore(data, length)"
+replacement = "mstore(data, add(length, 1))"
+
+[[mutants]]
+name = "C10 copy uses offset"
+file = "src/lib/LibDataContract.sol"
+target = "extcodecopy(pointer, add(data, 0x20), offset, length)"
+replacement = "extcodecopy(pointer, add(data, 0x20), 0, length)"
+
+[[mutants]]
+name = "C11 copy uses length"
+file = "src/lib/LibDataContract.sol"
+target = "extcodecopy(pointer, add(data, 0x20), offset, length)"
+replacement = "extcodecopy(pointer, add(data, 0x20), offset, 0)"
+
+[[mutants]]
+name = "C12 output allocated at the free memory pointer"
+file = "src/lib/LibDataContract.sol"
+target = """data := mload(0x40)
+            // New "memory end" including padding.
+            // Compiler will optimise away the double constant addition.
+            mstore(0x40, add(data, and(add(add(length, 0x20), 0x1f), not(0x1f))))"""
+replacement = """data := 0
+            // New "memory end" including padding.
+            // Compiler will optimise away the double constant addition.
+            mstore(0x40, add(data, and(add(add(length, 0x20), 0x1f), not(0x1f))))"""
