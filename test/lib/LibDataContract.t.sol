@@ -9,11 +9,9 @@ import {LibBytes} from "rain-solmem-0.1.3/src/lib/LibBytes.sol";
 import {
     LibPointer,
     Pointer,
-    DataContractMemoryContainer,
     LibDataContract,
     DataTooLarge,
     ReadError,
-    WriteError,
     ZOLTU_PROXY_ADDRESS
 } from "src/lib/LibDataContract.sol";
 
