@@ -3,8 +3,8 @@
 pragma solidity =0.8.25;
 
 import {Test, console2} from "forge-std-1.16.1/src/Test.sol";
-import {LibMemCpy} from "rain-solmem-0.1.3/src/lib/LibMemCpy.sol";
-import {LibBytes} from "rain-solmem-0.1.3/src/lib/LibBytes.sol";
+import {LibMemCpy} from "rain-solmem-0.1.26/src/lib/LibMemCpy.sol";
+import {LibBytes} from "rain-solmem-0.1.26/src/lib/LibBytes.sol";
 
 import {LibPointer, Pointer, LibDataContract, DataTooLarge, ReadError} from "src/lib/LibDataContract.sol";
 
