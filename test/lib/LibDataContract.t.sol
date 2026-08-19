@@ -298,8 +298,8 @@ contract DataContractTest is Test {
     function testContractCreationCodeMemoryAccounting() external pure {
         // Lengths chosen so prefix + data is: below one word (13, 17 bytes),
         // exactly one word (13 + 19 = 32, padding is a no-op), and a
-        // non-aligned multi-word size (64 < 13 + 51 < 96).
-        uint256[4] memory lengths = [uint256(0), 4, 19, 51];
+        // non-aligned multi-word size (64 < 13 + 60 = 73 < 96).
+        uint256[4] memory lengths = [uint256(0), 4, 19, 60];
         for (uint256 i = 0; i < lengths.length; i++) {
             bytes memory data = new bytes(lengths[i]);
             uint256 freeMemoryPointerBefore;
