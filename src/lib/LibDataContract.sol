@@ -75,7 +75,10 @@ type DataContractMemoryContainer is uint256;
 /// Solidity but instead requires the caller to copy memory directy by pointer.
 /// https://github.com/rainprotocol/sol.lib.bytes can help with that.
 library LibDataContract {
-    /// Thrown when trying to write data that is too large to fit in uint16.
+    /// Thrown when data is too large to build container creation code for.
+    /// The creation code embeds `data.length + 1` as the PUSH2 code length
+    /// (the deployed container prepends a `0x00` byte), so any
+    /// `data.length >= type(uint16).max` reverts.
     /// @param dataLength The length of the data that was attempted to create a
     /// contract with.
     error DataTooLarge(uint256 dataLength);
