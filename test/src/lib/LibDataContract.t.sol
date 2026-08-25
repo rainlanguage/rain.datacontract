@@ -14,7 +14,7 @@ import {
     ReadError,
     BASE_PREFIX,
     PREFIX_BYTES_LENGTH
-} from "../../src/lib/LibDataContract.sol";
+} from "../../../src/lib/LibDataContract.sol";
 
 /// @title DataContractTest
 /// Tests for serializing and deserializing data to and from an onchain data
