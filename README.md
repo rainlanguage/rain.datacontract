@@ -13,12 +13,15 @@ Differences from sstore2:
 - Fuzzed with foundry.
 - Reverts on out-of-range slices instead of silently truncating.
 - `start`/`length` slicing rather than `start`/`end`.
+- Writes require cancun (MCOPY) on the executing chain; reads do not.
 
-Output is creation code byte-equivalent to what Solidity would emit for
-`type(Foo).creationCode`. Deployment is left to the caller — direct `create`,
-Zoltu deterministic proxy, etc. — and so is the target chain's code size limit:
-the library only enforces its own encoding limit of 65534 data bytes, so on
-EIP-170 chains (24576 runtime bytes) at most 24575 data bytes are deployable.
+Output is creation code deployable by any mechanism that works for
+`type(Foo).creationCode` — direct `create`, Zoltu deterministic proxy, etc. (a
+minimal 13-byte loader prefix plus the data — not solc output, so no constructor
+logic or metadata). Deployment is left to the caller, and so is the target
+chain's code size limit: the library only enforces its own encoding limit of
+65534 data bytes, so on EIP-170 chains (24576 runtime bytes) at most 24575 data
+bytes are deployable.
 
 Two read functions: `read` returns the entire deployed `bytes`; `readSlice`
 returns a `start`/`length` slice.

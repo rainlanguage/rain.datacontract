@@ -2,12 +2,18 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity =0.8.25;
 
-import {Test, console2} from "forge-std-1.16.1/src/Test.sol";
+import {Test, console2} from "forge-std-1.16.2/src/Test.sol";
 import {LibMemCpy} from "rain-solmem-0.1.26/src/lib/LibMemCpy.sol";
 import {LibBytes} from "rain-solmem-0.1.26/src/lib/LibBytes.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.26/src/lib/LibPointer.sol";
 
-import {LibDataContract, DataTooLarge, ReadError, BASE_PREFIX, PREFIX_BYTES_LENGTH} from "src/lib/LibDataContract.sol";
+import {
+    LibDataContract,
+    DataTooLarge,
+    ReadError,
+    BASE_PREFIX,
+    PREFIX_BYTES_LENGTH
+} from "../../src/lib/LibDataContract.sol";
 
 /// @title DataContractTest
 /// Tests for serializing and deserializing data to and from an onchain data

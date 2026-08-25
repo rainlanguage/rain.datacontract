@@ -60,6 +60,10 @@ uint256 constant PREFIX_BYTES_LENGTH = 13;
 /// - Assembly optimisations for less gas usage
 /// - Not shipped with other unrelated code to reduce dependency bloat
 /// - Fuzzed with foundry
+/// - Requires an EVM with `MCOPY` (cancun): `contractCreationCode` executes
+///   `mcopy`, so writes halt with an invalid opcode on pre-cancun chains even
+///   though the code compiles cleanly under a cancun+ `evm_version`. Reads
+///   (`read`/`readSlice`) use no cancun opcodes.
 library LibDataContract {
     /// Given some data in memory, prepares the creation code for a contract that
     /// will contain that data when deployed. The caller is responsible for
