@@ -62,6 +62,10 @@ uint256 constant PREFIX_BYTES_LENGTH = 13;
 /// - Assembly optimisations for less gas usage
 /// - Not shipped with other unrelated code to reduce dependency bloat
 /// - Fuzzed with foundry
+/// - Requires an EVM with `MCOPY` (cancun): `contractCreationCode` executes
+///   `mcopy`, so writes halt with an invalid opcode on pre-cancun chains even
+///   though the code compiles cleanly under a cancun+ `evm_version`. Reads
+///   (`read`/`readSlice`) use no cancun opcodes.
 library LibDataContract {
     /// Given some data in memory, prepares the creation code for a contract that
     /// will contain that data when deployed. The caller is responsible for
@@ -88,11 +92,11 @@ library LibDataContract {
             // allocate output byte array
             creationCode := mload(0x40)
             // new "memory end" including padding
-            let dataLength := add(prefixBytesLength, mload(data))
-            let paddedDataLength := and(add(dataLength, 0x1f), not(0x1f))
-            let totalLength := add(paddedDataLength, 0x20)
+            let contentLength := add(prefixBytesLength, mload(data))
+            let paddedContentLength := and(add(contentLength, 0x1f), not(0x1f))
+            let totalLength := add(paddedContentLength, 0x20)
             mstore(0x40, add(creationCode, totalLength))
-            mstore(creationCode, dataLength)
+            mstore(creationCode, contentLength)
             let prefix :=
                 or(
                     basePrefix,
@@ -185,7 +189,7 @@ library LibDataContract {
         if (size < end) revert ReadError();
         assembly ("memory-safe") {
             // Allocate output byte array - this could also be done without
-            // assembly by using data = new bytes(size)
+            // assembly by using data = new bytes(length)
             data := mload(0x40)
             // New "memory end" including padding.
             // Compiler will optimise away the double constant addition.
