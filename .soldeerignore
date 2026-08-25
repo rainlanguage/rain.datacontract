@@ -1,6 +1,5 @@
 .DS_Store
 .coderabbit.yaml
-.gas-snapshot
 .git
 .github
 .gitignore
