@@ -2,7 +2,6 @@ version = 1
 
 [[annotations]]
 path = [
-  ".gas-snapshot",
   ".github/workflows/**/",
   ".vscode/**/",
   ".gitignore",
