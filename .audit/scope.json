@@ -1,0 +1,22 @@
+{
+  "auditedAt": "2026-08-25T11:45:00Z",
+  "auditedCommit": "c8f3188848c3ff0935fa5714b29022bd4c1f63aa",
+  "files": [
+    "src/error/ErrDataContract.sol",
+    "src/lib/LibDataContract.sol",
+    "test/lib/LibDataContract.t.sol",
+    "README.md",
+    "foundry.toml",
+    "remappings.txt",
+    "REUSE.toml",
+    "slither.config.json",
+    "flake.nix",
+    ".github/workflows/package-release.yaml",
+    ".github/workflows/rainix.yaml",
+    ".gitignore",
+    ".soldeerignore",
+    "soldeer.lock",
+    ".gas-snapshot"
+  ],
+  "countsByLanguage": { "solidity": 3, "rust": 0, "typescript": 0, "svelte": 0 }
+}
