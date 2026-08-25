@@ -44,7 +44,11 @@ contract DataContractTest is Test {
         return LibDataContract.read(datacontract);
     }
 
-    function readSliceExternal(address datacontract, uint16 start, uint16 length) external view returns (bytes memory) {
+    function readSliceExternal(address datacontract, uint256 start, uint256 length)
+        external
+        view
+        returns (bytes memory)
+    {
         return LibDataContract.readSlice(datacontract, start, length);
     }
 
@@ -682,69 +686,52 @@ contract DataContractTest is Test {
         this.readSliceExternal(notContainer, 0, 4);
     }
 
-    /// Calls `readSlice` with `start` and `length` stack words carrying the
-    /// full 256 bits of the given values, bypassing the cleanup Solidity
-    /// performs on ABI-decoded values. `readSlice` must behave as though only
-    /// the low 16 bits were passed.
-    function readSliceDirty(address pointer, uint256 dirtyStart, uint256 dirtyLength)
-        external
-        view
-        returns (bytes memory)
-    {
-        uint16 start;
-        uint16 length;
-        assembly ("memory-safe") {
-            start := dirtyStart
-            length := dirtyLength
-        }
-        return LibDataContract.readSlice(pointer, start, length);
-    }
-
-    /// Dirty bits above uint16 in `start` and `length` MUST NOT change the
-    /// slice: the result equals the clean call on the low 16 bits. Without
-    /// masking, dirty bits inflate the computed end and wrongly revert with
-    /// `ReadError`.
-    function testReadSliceDirtyBitsIgnored() external {
+    /// Only the low 16 bits of `start` and `length` are meaningful: higher
+    /// bits are truncated by the `and(x, 0xffff)` masks where the parameters
+    /// enter assembly. A call with high bits set returns exactly the slice of
+    /// the low 16 bits, even when the raw uint256 values lie far outside the
+    /// data.
+    function testReadSliceHighBitsTruncated() external {
         bytes memory data = hex"00112233445566778899aabbccddeeff";
         address dataContract = deploy(data);
 
         bytes memory expected = LibDataContract.readSlice(dataContract, 3, 5);
         assertEq(expected, hex"3344556677");
 
-        // Dirty start only.
-        assertEq(this.readSliceDirty(dataContract, (1 << 16) | 3, 5), expected);
-        // Dirty length only.
-        assertEq(this.readSliceDirty(dataContract, 3, (0xdead << 16) | 5), expected);
-        // Both dirty, all high bits set.
+        // High bits in start only.
+        assertEq(LibDataContract.readSlice(dataContract, (1 << 16) | 3, 5), expected);
+        // High bits in length only.
+        assertEq(LibDataContract.readSlice(dataContract, 3, (0xdead << 16) | 5), expected);
+        // High bits in both, all set.
         assertEq(
-            this.readSliceDirty(dataContract, (type(uint256).max << 16) | 3, (type(uint256).max << 16) | 5), expected
+            LibDataContract.readSlice(dataContract, (type(uint256).max << 16) | 3, (type(uint256).max << 16) | 5),
+            expected
         );
     }
 
-    /// Fuzz: for any in-bounds slice and any dirty high bits, the dirty call
-    /// returns exactly the clean slice.
-    function testReadSliceDirtyBitsFuzz(
+    /// Fuzz: for any in-bounds slice, any bits above the low 16 of either
+    /// parameter are truncated: the call equals the low-16-bit call.
+    function testReadSliceHighBitsTruncatedFuzz(
         bytes memory data,
         uint256 startSeed,
         uint256 lengthSeed,
-        uint256 dirtyStartBits,
-        uint256 dirtyLengthBits
+        uint256 startHighBits,
+        uint256 lengthHighBits
     ) external {
-        uint16 start = uint16(bound(startSeed, 0, data.length));
-        uint16 length = uint16(bound(lengthSeed, 0, data.length - start));
+        uint256 start = bound(startSeed, 0, data.length);
+        uint256 length = bound(lengthSeed, 0, data.length - start);
         address dataContract = deploy(data);
 
         bytes memory expected = LibDataContract.readSlice(dataContract, start, length);
-        bytes memory actual = this.readSliceDirty(
-            dataContract, uint256(start) | (dirtyStartBits << 16), uint256(length) | (dirtyLengthBits << 16)
-        );
+        bytes memory actual =
+            LibDataContract.readSlice(dataContract, start | (startHighBits << 16), length | (lengthHighBits << 16));
         assertEq(actual, expected);
     }
 
-    /// The masks are exactly 16 bits wide: clean values that need more than
-    /// 8 bits pass through unchanged. A slice with `start` and `length` both
-    /// above 0xff round-trips byte for byte, so any mask narrower than uint16
-    /// fails here.
+    /// The truncation masks are exactly 16 bits wide: values that need more
+    /// than 8 bits pass through unchanged. A slice with `start` and `length`
+    /// both above 0xff round-trips byte for byte, so any mask narrower than
+    /// 16 bits fails here.
     function testReadSliceMaskFullUint16Width() external {
         uint256 dataLength = 600;
         bytes memory data = new bytes(dataLength);
@@ -755,8 +742,8 @@ contract DataContractTest is Test {
         }
         address dataContract = deploy(data);
 
-        uint16 start = 300;
-        uint16 length = 260;
+        uint256 start = 300;
+        uint256 length = 260;
         bytes memory expected = new bytes(length);
         for (uint256 i = 0; i < length; i++) {
             expected[i] = data[start + i];
@@ -766,17 +753,18 @@ contract DataContractTest is Test {
         assertEq(slice, expected);
     }
 
-    /// A `length` stack word of `type(uint256).max` (low 16 bits all set) is
-    /// the dirty value that, without masking, wraps the computed end back
-    /// below the code size, slips past the bounds guard, and corrupts memory
-    /// by using the raw word as the stored length and allocation size. Masked,
-    /// it is a 0xffff-byte slice far past the end of this small contract and
-    /// MUST revert with `ReadError`.
-    function testReadSliceDirtyLengthWrapReverts() external {
+    /// Truncation does not bypass the bounds guard: a parameter whose low 16
+    /// bits address past the end of the code still reverts with `ReadError`.
+    /// `type(uint256).max` truncates to 0xffff — far past the end of this
+    /// small contract — for both `start` and `length`.
+    function testReadSliceTruncatedOutOfBoundsReverts() external {
         bytes memory data = hex"00112233445566778899aabbccddeeff";
         address dataContract = deploy(data);
 
         vm.expectRevert(ReadError.selector);
-        this.readSliceDirty(dataContract, 0, type(uint256).max);
+        this.readSliceExternal(dataContract, 0, type(uint256).max);
+
+        vm.expectRevert(ReadError.selector);
+        this.readSliceExternal(dataContract, type(uint256).max, 0);
     }
 }

@@ -157,10 +157,19 @@ library LibDataContract {
 
     /// Hybrid of address-only read, SSTORE2 read and Solidity docs.
     /// Unlike SSTORE2, reading past the end of the data contract WILL REVERT.
-    /// The bound applies to `start` itself, not only to bytes actually read:
-    /// `start + length <= data.length` must hold even when `length` is zero,
-    /// so a zero-length slice is valid only for `start` in `[0, data.length]`
-    /// and reverts when `start` is past the end of the data.
+    ///
+    /// Only the low 16 bits of `start` and `length` are meaningful: both are
+    /// truncated by the visible `and(x, 0xffff)` masks in the assembly.
+    /// A container's embedded length field is 2 bytes
+    /// (`contractCreationCode` caps data at 65534 bytes), so 16 bits spans
+    /// the entire addressable domain by construction and higher bits could
+    /// never address anything.
+    ///
+    /// After truncation, the bound applies to `start` itself, not only to
+    /// bytes actually read: `start + length <= data.length` must hold even
+    /// when `length` is zero, so a zero-length slice is valid only for
+    /// `start` in `[0, data.length]`, and any slice past the end of the code
+    /// reverts with `ReadError`.
     ///
     /// As with `read`, the pointer is never validated: any address bearing
     /// enough code for the requested slice is sliced as though it were a
@@ -168,18 +177,18 @@ library LibDataContract {
     /// reverting.
     /// @param pointer As per `read`.
     /// @param start Starting offset for reads from the data contract.
-    /// @param length Number of bytes to read.
-    /// @return data `length` bytes copied from the data contract, starting at
-    /// data offset `start` (code offset `start + 1`; the `0x00` prefix byte is
-    /// not addressable).
-    function readSlice(address pointer, uint16 start, uint16 length) internal view returns (bytes memory data) {
+    /// Truncated to its low 16 bits.
+    /// @param length Number of bytes to read. Truncated to its low 16 bits.
+    /// @return data The truncated `length` bytes copied from the data
+    /// contract, starting at truncated data offset `start` (code offset
+    /// `start + 1`; the `0x00` prefix byte is not addressable).
+    function readSlice(address pointer, uint256 start, uint256 length) internal view returns (bytes memory data) {
         uint256 size;
-        // uint256 offset and end avoids overflow issues from uint16.
         uint256 offset;
         uint256 end;
-        // Bits above a uint16's encoding are not guaranteed zero when the
-        // value is accessed from assembly, so mask both parameters where they
-        // enter assembly.
+        // Truncate both parameters to the container's addressable domain:
+        // the embedded length field is 2 bytes, so only the low 16 bits of a
+        // start or length can ever address data.
         uint256 lengthMasked;
         assembly ("memory-safe") {
             lengthMasked := and(length, 0xffff)
