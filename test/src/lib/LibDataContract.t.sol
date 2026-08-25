@@ -44,7 +44,11 @@ contract DataContractTest is Test {
         return LibDataContract.read(datacontract);
     }
 
-    function readSliceExternal(address datacontract, uint16 start, uint16 length) external view returns (bytes memory) {
+    function readSliceExternal(address datacontract, uint256 start, uint256 length)
+        external
+        view
+        returns (bytes memory)
+    {
         return LibDataContract.readSlice(datacontract, start, length);
     }
 
@@ -680,5 +684,87 @@ contract DataContractTest is Test {
 
         vm.expectRevert(ReadError.selector);
         this.readSliceExternal(notContainer, 0, 4);
+    }
+
+    /// Only the low 16 bits of `start` and `length` are meaningful: higher
+    /// bits are truncated by the `and(x, 0xffff)` masks where the parameters
+    /// enter assembly. A call with high bits set returns exactly the slice of
+    /// the low 16 bits, even when the raw uint256 values lie far outside the
+    /// data.
+    function testReadSliceHighBitsTruncated() external {
+        bytes memory data = hex"00112233445566778899aabbccddeeff";
+        address dataContract = deploy(data);
+
+        bytes memory expected = LibDataContract.readSlice(dataContract, 3, 5);
+        assertEq(expected, hex"3344556677");
+
+        // High bits in start only.
+        assertEq(LibDataContract.readSlice(dataContract, (1 << 16) | 3, 5), expected);
+        // High bits in length only.
+        assertEq(LibDataContract.readSlice(dataContract, 3, (0xdead << 16) | 5), expected);
+        // High bits in both, all set.
+        assertEq(
+            LibDataContract.readSlice(dataContract, (type(uint256).max << 16) | 3, (type(uint256).max << 16) | 5),
+            expected
+        );
+    }
+
+    /// Fuzz: for any in-bounds slice, any bits above the low 16 of either
+    /// parameter are truncated: the call equals the low-16-bit call.
+    function testReadSliceHighBitsTruncatedFuzz(
+        bytes memory data,
+        uint256 startSeed,
+        uint256 lengthSeed,
+        uint256 startHighBits,
+        uint256 lengthHighBits
+    ) external {
+        uint256 start = bound(startSeed, 0, data.length);
+        uint256 length = bound(lengthSeed, 0, data.length - start);
+        address dataContract = deploy(data);
+
+        bytes memory expected = LibDataContract.readSlice(dataContract, start, length);
+        bytes memory actual =
+            LibDataContract.readSlice(dataContract, start | (startHighBits << 16), length | (lengthHighBits << 16));
+        assertEq(actual, expected);
+    }
+
+    /// The truncation masks are exactly 16 bits wide: values that need more
+    /// than 8 bits pass through unchanged. A slice with `start` and `length`
+    /// both above 0xff round-trips byte for byte, so any mask narrower than
+    /// 16 bits fails here.
+    function testReadSliceMaskFullUint16Width() external {
+        uint256 dataLength = 600;
+        bytes memory data = new bytes(dataLength);
+        // Non-zero, position-dependent pattern so any offset shift is
+        // observable.
+        for (uint256 i = 0; i < dataLength; i++) {
+            data[i] = bytes1(uint8((i % 255) + 1));
+        }
+        address dataContract = deploy(data);
+
+        uint256 start = 300;
+        uint256 length = 260;
+        bytes memory expected = new bytes(length);
+        for (uint256 i = 0; i < length; i++) {
+            expected[i] = data[start + i];
+        }
+
+        bytes memory slice = LibDataContract.readSlice(dataContract, start, length);
+        assertEq(slice, expected);
+    }
+
+    /// Truncation does not bypass the bounds guard: a parameter whose low 16
+    /// bits address past the end of the code still reverts with `ReadError`.
+    /// `type(uint256).max` truncates to 0xffff — far past the end of this
+    /// small contract — for both `start` and `length`.
+    function testReadSliceTruncatedOutOfBoundsReverts() external {
+        bytes memory data = hex"00112233445566778899aabbccddeeff";
+        address dataContract = deploy(data);
+
+        vm.expectRevert(ReadError.selector);
+        this.readSliceExternal(dataContract, 0, type(uint256).max);
+
+        vm.expectRevert(ReadError.selector);
+        this.readSliceExternal(dataContract, type(uint256).max, 0);
     }
 }

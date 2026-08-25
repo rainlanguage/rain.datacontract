@@ -157,10 +157,19 @@ library LibDataContract {
 
     /// Hybrid of address-only read, SSTORE2 read and Solidity docs.
     /// Unlike SSTORE2, reading past the end of the data contract WILL REVERT.
-    /// The bound applies to `start` itself, not only to bytes actually read:
-    /// `start + length <= data.length` must hold even when `length` is zero,
-    /// so a zero-length slice is valid only for `start` in `[0, data.length]`
-    /// and reverts when `start` is past the end of the data.
+    ///
+    /// Only the low 16 bits of `start` and `length` are meaningful: both are
+    /// truncated by the visible `and(x, 0xffff)` masks in the assembly.
+    /// The creation code sizes the container with a 2-byte `PUSH2` operand
+    /// (`contractCreationCode` caps data at 65534 bytes), so 16 bits spans
+    /// the entire addressable domain by construction and higher bits could
+    /// never address anything.
+    ///
+    /// After truncation, the bound applies to `start` itself, not only to
+    /// bytes actually read: `start + length <= data.length` must hold even
+    /// when `length` is zero, so a zero-length slice is valid only for
+    /// `start` in `[0, data.length]`, and any slice past the end of the code
+    /// reverts with `ReadError`.
     ///
     /// As with `read`, the pointer is never validated: any address bearing
     /// enough code for the requested slice is sliced as though it were a
@@ -168,34 +177,40 @@ library LibDataContract {
     /// reverting.
     /// @param pointer As per `read`.
     /// @param start Starting offset for reads from the data contract.
-    /// @param length Number of bytes to read.
-    /// @return data `length` bytes copied from the data contract, starting at
-    /// data offset `start` (code offset `start + 1`; the `0x00` prefix byte is
-    /// not addressable).
-    function readSlice(address pointer, uint16 start, uint16 length) internal view returns (bytes memory data) {
+    /// Truncated to its low 16 bits.
+    /// @param length Number of bytes to read. Truncated to its low 16 bits.
+    /// @return data The truncated `length` bytes copied from the data
+    /// contract, starting at truncated data offset `start` (code offset
+    /// `start + 1`; the `0x00` prefix byte is not addressable).
+    function readSlice(address pointer, uint256 start, uint256 length) internal view returns (bytes memory data) {
         uint256 size;
-        // uint256 offset and end avoids overflow issues from uint16.
         uint256 offset;
         uint256 end;
+        // Truncate both parameters to the container's addressable domain:
+        // the creation code sizes the container with a 2-byte `PUSH2`
+        // operand, so only the low 16 bits of a start or length can ever
+        // address data.
+        uint256 lengthMasked;
         assembly ("memory-safe") {
+            lengthMasked := and(length, 0xffff)
             // Skip the first byte.
-            offset := add(start, 1)
-            end := add(offset, length)
+            offset := add(and(start, 0xffff), 1)
+            end := add(offset, lengthMasked)
             // Retrieve the size of the code, this needs assembly.
             size := extcodesize(pointer)
         }
         if (size < end) revert ReadError();
         assembly ("memory-safe") {
             // Allocate output byte array - this could also be done without
-            // assembly by using data = new bytes(length)
+            // assembly by using data = new bytes(lengthMasked)
             data := mload(0x40)
             // New "memory end" including padding.
             // Compiler will optimise away the double constant addition.
-            mstore(0x40, add(data, and(add(add(length, 0x20), 0x1f), not(0x1f))))
+            mstore(0x40, add(data, and(add(add(lengthMasked, 0x20), 0x1f), not(0x1f))))
             // Store length in memory.
-            mstore(data, length)
+            mstore(data, lengthMasked)
             // actually retrieve the code, this needs assembly
-            extcodecopy(pointer, add(data, 0x20), offset, length)
+            extcodecopy(pointer, add(data, 0x20), offset, lengthMasked)
         }
     }
 }
