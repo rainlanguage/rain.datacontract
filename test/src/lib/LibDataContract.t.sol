@@ -13,7 +13,7 @@ import {
     ReadError,
     BASE_PREFIX,
     PREFIX_BYTES_LENGTH
-} from "../../src/lib/LibDataContract.sol";
+} from "../../../src/lib/LibDataContract.sol";
 import {Deployer} from "./Deployer.sol";
 
 /// @title DataContractTest
