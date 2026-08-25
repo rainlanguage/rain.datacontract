@@ -7,23 +7,7 @@ import {LibMemCpy} from "rain-solmem-0.1.26/src/lib/LibMemCpy.sol";
 import {LibBytes} from "rain-solmem-0.1.26/src/lib/LibBytes.sol";
 
 import {LibPointer, Pointer, LibDataContract, DataTooLarge, ReadError} from "src/lib/LibDataContract.sol";
-
-/// @title Deployer
-/// Deploys arbitrary creation code from its own address so tests can deploy
-/// identical creation code from distinct deployer addresses and call paths.
-contract Deployer {
-    function deployCreate(bytes memory creationCode) external returns (address dataContract) {
-        assembly ("memory-safe") {
-            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
-        }
-    }
-
-    function deployCreate2(bytes memory creationCode, bytes32 salt) external returns (address dataContract) {
-        assembly ("memory-safe") {
-            dataContract := create2(0, add(creationCode, 0x20), mload(creationCode), salt)
-        }
-    }
-}
+import {Deployer} from "./Deployer.sol";
 
 /// @title DataContractTest
 /// Tests for serializing and deserializing data to and from an onchain data
