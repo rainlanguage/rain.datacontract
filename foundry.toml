@@ -13,7 +13,7 @@ evm_version = "cancun"
 runs = 1024
 
 [dependencies]
-forge-std = "1.16.1"
+forge-std = "1.16.2"
 "rain-solmem" = "0.1.26"
 
 [soldeer]
