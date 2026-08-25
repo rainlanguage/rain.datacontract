@@ -13,6 +13,7 @@ Differences from sstore2:
 - Fuzzed with foundry.
 - Reverts on out-of-range slices instead of silently truncating.
 - `start`/`length` slicing rather than `start`/`end`.
+- Writes require cancun (MCOPY) on the executing chain; reads do not.
 
 Output is creation code byte-equivalent to what Solidity would emit for
 `type(Foo).creationCode`. Deployment is left to the caller — direct `create`,
