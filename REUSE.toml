@@ -8,6 +8,7 @@ path = [
   ".gitignore",
   ".soldeerignore",
   "audit/**/",
+  ".audit/**/",
   "README.md",
   "flake.lock",
   "flake.nix",

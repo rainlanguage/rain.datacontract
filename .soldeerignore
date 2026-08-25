@@ -8,6 +8,7 @@
 .soldeerignore
 .vscode
 CLAUDE.md
+/.audit
 /audit
 /broadcast
 /cache
