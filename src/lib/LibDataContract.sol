@@ -175,10 +175,15 @@ library LibDataContract {
         // uint256 offset and end avoids overflow issues from uint16.
         uint256 offset;
         uint256 end;
+        // Bits above a uint16's encoding are not guaranteed zero when the
+        // value is accessed from assembly, so mask both parameters where they
+        // enter assembly.
+        uint256 lengthMasked;
         assembly ("memory-safe") {
+            lengthMasked := and(length, 0xffff)
             // Skip the first byte.
-            offset := add(start, 1)
-            end := add(offset, length)
+            offset := add(and(start, 0xffff), 1)
+            end := add(offset, lengthMasked)
             // Retrieve the size of the code, this needs assembly.
             size := extcodesize(pointer)
         }
@@ -189,11 +194,11 @@ library LibDataContract {
             data := mload(0x40)
             // New "memory end" including padding.
             // Compiler will optimise away the double constant addition.
-            mstore(0x40, add(data, and(add(add(length, 0x20), 0x1f), not(0x1f))))
+            mstore(0x40, add(data, and(add(add(lengthMasked, 0x20), 0x1f), not(0x1f))))
             // Store length in memory.
-            mstore(data, length)
+            mstore(data, lengthMasked)
             // actually retrieve the code, this needs assembly
-            extcodecopy(pointer, add(data, 0x20), offset, length)
+            extcodecopy(pointer, add(data, 0x20), offset, lengthMasked)
         }
     }
 }
