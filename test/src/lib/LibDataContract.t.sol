@@ -6,7 +6,15 @@ import {Test, console2} from "forge-std-1.16.1/src/Test.sol";
 import {LibMemCpy} from "rain-solmem-0.1.26/src/lib/LibMemCpy.sol";
 import {LibBytes} from "rain-solmem-0.1.26/src/lib/LibBytes.sol";
 
-import {LibPointer, Pointer, LibDataContract, DataTooLarge, ReadError} from "src/lib/LibDataContract.sol";
+import {
+    LibPointer,
+    Pointer,
+    LibDataContract,
+    DataTooLarge,
+    ReadError,
+    BASE_PREFIX,
+    PREFIX_BYTES_LENGTH
+} from "src/lib/LibDataContract.sol";
 
 /// @title DataContractTest
 /// Tests for serializing and deserializing data to and from an onchain data
@@ -52,11 +60,7 @@ contract DataContractTest is Test {
         // Put some garbage in unallocated memory.
         LibMemCpy.unsafeCopyBytesTo(garbage.dataPointer(), LibPointer.allocatedMemoryPointer(), garbage.length);
 
-        bytes memory creationCode = LibDataContract.contractCreationCode(data);
-        address dataContract;
-        assembly ("memory-safe") {
-            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
-        }
+        address dataContract = deploy(data);
         bytes memory round = LibDataContract.read(dataContract);
 
         assertEq(round.length, data.length);
@@ -94,11 +98,7 @@ contract DataContractTest is Test {
     function testRoundSliceError(bytes memory data, uint16 start, uint16 length) public {
         vm.assume(uint256(start) + uint256(length) > data.length);
 
-        bytes memory creationCode = LibDataContract.contractCreationCode(data);
-        address dataContract;
-        assembly ("memory-safe") {
-            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
-        }
+        address dataContract = deploy(data);
 
         vm.expectRevert(ReadError.selector);
         (bytes memory slice) = this.readSliceExternal(dataContract, start, length);
@@ -108,11 +108,7 @@ contract DataContractTest is Test {
     /// Reading a slice over the whole contract gives the same result as reading
     /// the whole contract.
     function testSameReads(bytes memory data) public {
-        bytes memory creationCode = LibDataContract.contractCreationCode(data);
-        address dataContract;
-        assembly ("memory-safe") {
-            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
-        }
+        address dataContract = deploy(data);
 
         bytes memory read = LibDataContract.read(dataContract);
         bytes memory readSlice = LibDataContract.readSlice(dataContract, 0, uint16(data.length));
@@ -122,11 +118,7 @@ contract DataContractTest is Test {
 
     /// Check there is always a 0 byte prefix on the underlying data contract.
     function testZeroPrefix(bytes memory data) public {
-        bytes memory creationCode = LibDataContract.contractCreationCode(data);
-        address dataContract;
-        assembly ("memory-safe") {
-            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
-        }
+        address dataContract = deploy(data);
 
         uint256 firstByte;
         assembly ("memory-safe") {
@@ -138,9 +130,9 @@ contract DataContractTest is Test {
         assertEq(firstByte, 0);
     }
 
-    /// Deterministically deploy a data contract from `data` and return its
-    /// address. Used by the boundary tests below that need a concrete, known
-    /// input rather than a fuzzed one.
+    /// Deploy a data contract from `data` and return its address, asserting
+    /// the `create` succeeded so a failed deployment surfaces here rather than
+    /// as a vacuous pass in the calling test.
     function deploy(bytes memory data) internal returns (address dataContract) {
         bytes memory creationCode = LibDataContract.contractCreationCode(data);
         assembly ("memory-safe") {
@@ -270,6 +262,70 @@ contract DataContractTest is Test {
         this.contractCreationCodeVeryLargeData(tooLarge);
     }
 
+    /// Re-derive the full creation code byte-for-byte from the documented
+    /// opcode sequence (src/lib/LibDataContract.sol), pinning `BASE_PREFIX`
+    /// and `PREFIX_BYTES_LENGTH` against their derivation instead of trusting
+    /// the hardcoded constants: PUSH2 <runtime size> DUP1, PUSH1 12, PUSH1 0,
+    /// CODECOPY, PUSH1 0, RETURN, then the 0x00 prefix byte and the data. Any
+    /// drift between the constants and the opcode table fails here at the
+    /// constants themselves rather than as an opaque round-trip mismatch.
+    function testContractCreationCodeExactBytes(bytes memory data) external pure {
+        vm.assume(data.length < uint256(type(uint16).max));
+        bytes memory expected = abi.encodePacked(
+            hex"61",
+            uint16(data.length + 1), // PUSH2 runtime size incl. 0x00 prefix
+            hex"80", // DUP1
+            hex"600c", // PUSH1 12: runtime code offset within creation code
+            hex"6000", // PUSH1 0
+            hex"39", // CODECOPY
+            hex"6000", // PUSH1 0
+            hex"f3", // RETURN
+            hex"00", // prepended zero byte: first byte of runtime code
+            data
+        );
+        bytes memory creationCode = LibDataContract.contractCreationCode(data);
+        assertEq(creationCode.length, PREFIX_BYTES_LENGTH + data.length);
+        assertEq(creationCode, expected);
+    }
+
+    /// As `testContractCreationCodeExactBytes` but deterministically at the
+    /// largest accepted length, where the embedded PUSH2 operand saturates at
+    /// 0xffff. This pins that the `shl(232, ...)` length field lands exactly
+    /// on the two PUSH2 placeholder bytes of `BASE_PREFIX`: with every length
+    /// bit set, any misalignment or overlap with neighbouring opcode bytes
+    /// changes the prefix and fails the comparison. Fuzzing effectively never
+    /// reaches this boundary.
+    function testContractCreationCodeExactBytesLargest() external pure {
+        bytes memory data = new bytes(uint256(type(uint16).max) - 1);
+        bytes memory creationCode = LibDataContract.contractCreationCode(data);
+        assertEq(creationCode.length, PREFIX_BYTES_LENGTH + data.length);
+        bytes memory expected = abi.encodePacked(hex"61ffff80600c6000396000f300", data);
+        assertEq(creationCode, expected);
+    }
+
+    /// Relational pins between the two constants and within `BASE_PREFIX`
+    /// itself, straight from the documented opcode table:
+    /// - the PUSH1 operand for the CODECOPY source offset (byte 5 of the
+    ///   prefix) is the runtime code's offset within the creation code, i.e.
+    ///   `PREFIX_BYTES_LENGTH - 1` because the trailing 0x00 prefix byte is
+    ///   already runtime code;
+    /// - the two PUSH2 placeholder bytes (bytes 1-2) are zero so the
+    ///   `or(BASE_PREFIX, shl(232, length))` in `contractCreationCode` writes
+    ///   the length without clobbering opcode bits;
+    /// - every bit below the 13 documented prefix bytes is zero: the table is
+    ///   the whole constant, and the full-word `mstore` of the prefix leaves
+    ///   only zeros in the padding region past short data.
+    function testBasePrefixRelationalPins() external pure {
+        bytes32 prefix = bytes32(BASE_PREFIX);
+        // CODECOPY source offset operand == PREFIX_BYTES_LENGTH - 1.
+        assertEq(uint8(prefix[5]), PREFIX_BYTES_LENGTH - 1);
+        // PUSH2 placeholder bytes are zero.
+        assertEq(uint8(prefix[1]), 0);
+        assertEq(uint8(prefix[2]), 0);
+        // No bits set beyond the PREFIX_BYTES_LENGTH prefix bytes.
+        assertEq(BASE_PREFIX & (type(uint256).max >> (8 * PREFIX_BYTES_LENGTH)), 0);
+    }
+
     /// `DataTooLarge` has ABI signature `DataTooLarge(uint256)`, so its
     /// selector is `bytes4(keccak256("DataTooLarge(uint256)"))` = 0x247b458c.
     /// Pinning the raw bytes means any change to the error's name or
@@ -278,6 +334,16 @@ contract DataContractTest is Test {
     /// the declaration, so they cannot catch signature drift).
     function testDataTooLargeSelectorPinned() external pure {
         assertEq(DataTooLarge.selector, bytes4(0x247b458c));
+    }
+
+    /// `ReadError` has ABI signature `ReadError()`, so its selector is
+    /// `bytes4(keccak256("ReadError()"))` = 0x26a9f61e. Pinning the raw bytes
+    /// means any change to the error's name shows up as an ABI break rather
+    /// than passing silently (the `vm.expectRevert(ReadError.selector)` tests
+    /// recompute the selector from the declaration, so they cannot catch
+    /// signature drift).
+    function testReadErrorSelectorPinned() external pure {
+        assertEq(ReadError.selector, bytes4(0x26a9f61e));
     }
 
     /// Reading a slice that ends exactly at the end of the data is valid and
