@@ -55,7 +55,9 @@ contract LibDataContractTest is Test {
         // Dirty length only.
         assertEq(this.readSliceDirty(dataContract, 3, (0xdead << 16) | 5), expected);
         // Both dirty, all high bits set.
-        assertEq(this.readSliceDirty(dataContract, (type(uint256).max << 16) | 3, (type(uint256).max << 16) | 5), expected);
+        assertEq(
+            this.readSliceDirty(dataContract, (type(uint256).max << 16) | 3, (type(uint256).max << 16) | 5), expected
+        );
     }
 
     /// Fuzz: for any in-bounds slice and any dirty high bits, the dirty call
