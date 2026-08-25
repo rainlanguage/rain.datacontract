@@ -5,16 +5,16 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.2/src/Test.sol";
 import {LibMemCpy} from "rain-solmem-0.1.26/src/lib/LibMemCpy.sol";
 import {LibBytes} from "rain-solmem-0.1.26/src/lib/LibBytes.sol";
+import {LibPointer, Pointer} from "rain-solmem-0.1.26/src/lib/LibPointer.sol";
 
 import {
-    LibPointer,
-    Pointer,
     LibDataContract,
     DataTooLarge,
     ReadError,
     BASE_PREFIX,
     PREFIX_BYTES_LENGTH
-} from "src/lib/LibDataContract.sol";
+} from "../../src/lib/LibDataContract.sol";
+import {Deployer} from "./Deployer.sol";
 
 /// @title DataContractTest
 /// Tests for serializing and deserializing data to and from an onchain data
@@ -567,6 +567,86 @@ contract DataContractTest is Test {
         // The free memory pointer moves past the aligned allocation.
         assertEq(freeMemoryPointerAfter, roundPointer + expectedAllocation);
         assertEq(round, data);
+    }
+
+    /// Deployment is left to the caller: any mechanism that works for
+    /// `type(Foo).creationCode` — direct `create`, Zoltu deterministic proxy
+    /// (`create2`), etc. Pin that the creation code is context independent by
+    /// deploying identical bytes via `create` and `create2` and checking both
+    /// round-trip the data and carry byte-identical runtime code.
+    function testRoundCreationCodeCreate2(bytes memory data, bytes32 salt) external {
+        vm.assume(data.length < uint256(type(uint16).max));
+        address viaCreate = deploy(data);
+        bytes memory creationCode = LibDataContract.contractCreationCode(data);
+        address viaCreate2;
+        assembly ("memory-safe") {
+            viaCreate2 := create2(0, add(creationCode, 0x20), mload(creationCode), salt)
+        }
+        assertTrue(viaCreate2 != address(0));
+        assertEq(LibDataContract.read(viaCreate2), data);
+        assertEq(viaCreate2.code, viaCreate.code);
+    }
+
+    /// The `create2` salt selects the deployment address but MUST NOT leak
+    /// into the deployed container: the same data deployed under two different
+    /// salts lands at two different addresses carrying byte-identical runtime
+    /// code that round-trips the data.
+    function testRoundCreationCodeSaltIndependence(bytes memory data, bytes32 saltA, bytes32 saltB) external {
+        vm.assume(data.length < uint256(type(uint16).max));
+        vm.assume(saltA != saltB);
+        bytes memory creationCode = LibDataContract.contractCreationCode(data);
+        address viaSaltA;
+        address viaSaltB;
+        assembly ("memory-safe") {
+            viaSaltA := create2(0, add(creationCode, 0x20), mload(creationCode), saltA)
+            viaSaltB := create2(0, add(creationCode, 0x20), mload(creationCode), saltB)
+        }
+        assertTrue(viaSaltA != address(0));
+        assertTrue(viaSaltB != address(0));
+        assertTrue(viaSaltA != viaSaltB);
+        assertEq(viaSaltA.code, viaSaltB.code);
+        assertEq(LibDataContract.read(viaSaltA), data);
+        assertEq(LibDataContract.read(viaSaltB), data);
+    }
+
+    /// The deployer's address and call path MUST NOT leak into the deployed
+    /// container, and the same data deployed repeatedly MUST yield
+    /// byte-identical containers: the same creation code deployed from the
+    /// test contract (twice, via `create`), from two distinct `Deployer`
+    /// contracts via `create`, and from one of them via `create2`, lands at
+    /// distinct addresses all carrying runtime code that is exactly the single
+    /// 0x00 prefix byte followed by the data, and each round-trips the data.
+    function testRoundCreationCodeDeployerIndependence(bytes memory data, bytes32 salt) external {
+        vm.assume(data.length < uint256(type(uint16).max));
+        bytes memory creationCode = LibDataContract.contractCreationCode(data);
+
+        Deployer deployerA = new Deployer();
+        Deployer deployerB = new Deployer();
+
+        address direct = deploy(data);
+        address directAgain = deploy(data);
+        address viaDeployerA = deployerA.deployCreate(creationCode);
+        address viaDeployerB = deployerB.deployCreate(creationCode);
+        address viaDeployerBCreate2 = deployerB.deployCreate2(creationCode, salt);
+
+        assertTrue(viaDeployerA != address(0));
+        assertTrue(viaDeployerB != address(0));
+        assertTrue(viaDeployerBCreate2 != address(0));
+        // Same deployer, same data, deployed twice: different address, same
+        // container bytes.
+        assertTrue(direct != directAgain);
+
+        bytes memory expectedCode = abi.encodePacked(bytes1(0x00), data);
+        assertEq(direct.code, expectedCode);
+        assertEq(directAgain.code, expectedCode);
+        assertEq(viaDeployerA.code, expectedCode);
+        assertEq(viaDeployerB.code, expectedCode);
+        assertEq(viaDeployerBCreate2.code, expectedCode);
+
+        assertEq(LibDataContract.read(direct), data);
+        assertEq(LibDataContract.read(viaDeployerA), data);
+        assertEq(LibDataContract.read(viaDeployerB), data);
+        assertEq(LibDataContract.read(viaDeployerBCreate2), data);
     }
 
     /// `read` never validates that the pointer is a container this library
