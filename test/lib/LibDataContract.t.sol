@@ -6,7 +6,7 @@ import {Test, console2} from "forge-std-1.16.1/src/Test.sol";
 import {LibMemCpy} from "rain-solmem-0.1.26/src/lib/LibMemCpy.sol";
 import {LibBytes} from "rain-solmem-0.1.26/src/lib/LibBytes.sol";
 
-import {LibPointer, Pointer, LibDataContract, DataTooLarge, ReadError} from "src/lib/LibDataContract.sol";
+import {LibPointer, Pointer, LibDataContract, DataTooLarge, ReadError} from "../../src/lib/LibDataContract.sol";
 
 /// @title DataContractTest
 /// Tests for serializing and deserializing data to and from an onchain data
