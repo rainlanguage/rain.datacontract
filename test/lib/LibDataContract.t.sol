@@ -60,11 +60,7 @@ contract DataContractTest is Test {
         // Put some garbage in unallocated memory.
         LibMemCpy.unsafeCopyBytesTo(garbage.dataPointer(), LibPointer.allocatedMemoryPointer(), garbage.length);
 
-        bytes memory creationCode = LibDataContract.contractCreationCode(data);
-        address dataContract;
-        assembly ("memory-safe") {
-            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
-        }
+        address dataContract = deploy(data);
         bytes memory round = LibDataContract.read(dataContract);
 
         assertEq(round.length, data.length);
@@ -102,11 +98,7 @@ contract DataContractTest is Test {
     function testRoundSliceError(bytes memory data, uint16 start, uint16 length) public {
         vm.assume(uint256(start) + uint256(length) > data.length);
 
-        bytes memory creationCode = LibDataContract.contractCreationCode(data);
-        address dataContract;
-        assembly ("memory-safe") {
-            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
-        }
+        address dataContract = deploy(data);
 
         vm.expectRevert(ReadError.selector);
         (bytes memory slice) = this.readSliceExternal(dataContract, start, length);
@@ -116,11 +108,7 @@ contract DataContractTest is Test {
     /// Reading a slice over the whole contract gives the same result as reading
     /// the whole contract.
     function testSameReads(bytes memory data) public {
-        bytes memory creationCode = LibDataContract.contractCreationCode(data);
-        address dataContract;
-        assembly ("memory-safe") {
-            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
-        }
+        address dataContract = deploy(data);
 
         bytes memory read = LibDataContract.read(dataContract);
         bytes memory readSlice = LibDataContract.readSlice(dataContract, 0, uint16(data.length));
@@ -130,11 +118,7 @@ contract DataContractTest is Test {
 
     /// Check there is always a 0 byte prefix on the underlying data contract.
     function testZeroPrefix(bytes memory data) public {
-        bytes memory creationCode = LibDataContract.contractCreationCode(data);
-        address dataContract;
-        assembly ("memory-safe") {
-            dataContract := create(0, add(creationCode, 0x20), mload(creationCode))
-        }
+        address dataContract = deploy(data);
 
         uint256 firstByte;
         assembly ("memory-safe") {
@@ -146,9 +130,9 @@ contract DataContractTest is Test {
         assertEq(firstByte, 0);
     }
 
-    /// Deterministically deploy a data contract from `data` and return its
-    /// address. Used by the boundary tests below that need a concrete, known
-    /// input rather than a fuzzed one.
+    /// Deploy a data contract from `data` and return its address, asserting
+    /// the `create` succeeded so a failed deployment surfaces here rather than
+    /// as a vacuous pass in the calling test.
     function deploy(bytes memory data) internal returns (address dataContract) {
         bytes memory creationCode = LibDataContract.contractCreationCode(data);
         assembly ("memory-safe") {
