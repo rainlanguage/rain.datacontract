@@ -187,8 +187,9 @@ library LibDataContract {
         uint256 offset;
         uint256 end;
         // Truncate both parameters to the container's addressable domain:
-        // the embedded length field is 2 bytes, so only the low 16 bits of a
-        // start or length can ever address data.
+        // the creation code sizes the container with a 2-byte `PUSH2`
+        // operand, so only the low 16 bits of a start or length can ever
+        // address data.
         uint256 lengthMasked;
         assembly ("memory-safe") {
             lengthMasked := and(length, 0xffff)
