@@ -336,6 +336,16 @@ contract DataContractTest is Test {
         assertEq(DataTooLarge.selector, bytes4(0x247b458c));
     }
 
+    /// `ReadError` has ABI signature `ReadError()`, so its selector is
+    /// `bytes4(keccak256("ReadError()"))` = 0x26a9f61e. Pinning the raw bytes
+    /// means any change to the error's name shows up as an ABI break rather
+    /// than passing silently (the `vm.expectRevert(ReadError.selector)` tests
+    /// recompute the selector from the declaration, so they cannot catch
+    /// signature drift).
+    function testReadErrorSelectorPinned() external pure {
+        assertEq(ReadError.selector, bytes4(0x26a9f61e));
+    }
+
     /// Reading a slice that ends exactly at the end of the data is valid and
     /// returns the tail bytes; reading one byte further MUST revert. This pins
     /// the `size < end` bounds check at its exact boundary deterministically
