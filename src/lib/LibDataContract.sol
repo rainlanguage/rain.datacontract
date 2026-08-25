@@ -2,8 +2,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity ^0.8.25;
 
-// forge-lint: disable-next-line(unused-import)
-import {LibPointer, Pointer} from "rain-solmem-0.1.26/src/lib/LibPointer.sol";
 import {ReadError, DataTooLarge} from "../error/ErrDataContract.sol";
 
 /// @dev SSTORE2 Verbatim original reference
