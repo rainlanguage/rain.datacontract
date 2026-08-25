@@ -185,7 +185,7 @@ library LibDataContract {
         if (size < end) revert ReadError();
         assembly ("memory-safe") {
             // Allocate output byte array - this could also be done without
-            // assembly by using data = new bytes(size)
+            // assembly by using data = new bytes(length)
             data := mload(0x40)
             // New "memory end" including padding.
             // Compiler will optimise away the double constant addition.
