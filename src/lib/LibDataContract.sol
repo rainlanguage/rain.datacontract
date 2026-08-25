@@ -160,7 +160,7 @@ library LibDataContract {
     ///
     /// Only the low 16 bits of `start` and `length` are meaningful: both are
     /// truncated by the visible `and(x, 0xffff)` masks in the assembly.
-    /// A container's embedded length field is 2 bytes
+    /// The creation code sizes the container with a 2-byte `PUSH2` operand
     /// (`contractCreationCode` caps data at 65534 bytes), so 16 bits spans
     /// the entire addressable domain by construction and higher bits could
     /// never address anything.
