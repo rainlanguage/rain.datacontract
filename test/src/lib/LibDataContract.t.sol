@@ -83,7 +83,7 @@ contract DataContractTest is Test {
     /// a ReadError.
     function testErrorBadAddressRead(address a) public {
         vm.expectRevert(ReadError.selector);
-        (bytes memory read) = this.readExternal(
+        this.readExternal(
             address(
                 uint160(
                     uint256(
@@ -95,7 +95,6 @@ contract DataContractTest is Test {
                 )
             )
         );
-        (read);
     }
 
     /// Reading a slice that is out of bounds should throw a ReadError.
@@ -114,10 +113,10 @@ contract DataContractTest is Test {
     function testSameReads(bytes memory data) public {
         address dataContract = deploy(data);
 
-        bytes memory read = LibDataContract.read(dataContract);
-        bytes memory readSlice = LibDataContract.readSlice(dataContract, 0, uint16(data.length));
+        bytes memory roundRead = LibDataContract.read(dataContract);
+        bytes memory roundSlice = LibDataContract.readSlice(dataContract, 0, uint16(data.length));
 
-        assertEq(read, readSlice);
+        assertEq(roundRead, roundSlice);
     }
 
     /// Check there is always a 0 byte prefix on the underlying data contract.
