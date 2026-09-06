@@ -14,7 +14,7 @@ runs = 1024
 
 [dependencies]
 forge-std = "1.16.2"
-"rain-solmem" = "0.1.26"
+"rain-solmem" = "0.1.28"
 
 [soldeer]
 recursive_deps = false
