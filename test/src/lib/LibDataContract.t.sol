@@ -206,8 +206,7 @@ contract DataContractTest is Test {
 
         // Read the final byte via a slice to pin the high end of the offset/
         // length math at the maximum size.
-        // forge-lint: disable-next-line(unsafe-typecast)
-        bytes memory lastByte = LibDataContract.readSlice(dataContract, uint16(maxLength - 1), 1);
+        bytes memory lastByte = LibDataContract.readSlice(dataContract, maxLength - 1, 1);
         assertEq(lastByte.length, 1);
         assertEq(lastByte[0], data[maxLength - 1]);
     }
@@ -244,8 +243,7 @@ contract DataContractTest is Test {
 
         // Read the final byte via a slice to pin the offset/length math at the
         // EIP-170 boundary as well.
-        // forge-lint: disable-next-line(unsafe-typecast)
-        bytes memory lastByte = LibDataContract.readSlice(dataContract, uint16(dataLength - 1), 1);
+        bytes memory lastByte = LibDataContract.readSlice(dataContract, dataLength - 1, 1);
         assertEq(lastByte.length, 1);
         assertEq(lastByte[0], data[dataLength - 1]);
     }
