@@ -430,8 +430,8 @@ contract DataContractTest is Test {
     /// bump covers the length word plus the data padded up to a whole 32-byte
     /// word, keeping the pointer word-aligned so later allocations neither
     /// start misaligned nor overlap the slice's final partial word. A 5 byte
-    /// slice therefore consumes exactly two words: one for the length and one
-    /// for the padded data.
+    /// or 1 byte slice therefore consumes exactly two words: one for the
+    /// length and one for the padded data.
     function testReadSliceAllocationAlignedAndPadded() external {
         bytes memory data = hex"00112233445566778899aabbccddeeff";
         address dataContract = deploy(data);
@@ -449,6 +449,14 @@ contract DataContractTest is Test {
         // Free memory pointer stays 32-byte aligned after the allocation.
         assertEq(allocated % 0x20, 0);
         // Exactly one word for the length plus one word of padded data.
+        assertEq(allocated, slicePointer + 0x40);
+
+        slice = LibDataContract.readSlice(dataContract, 3, 1);
+        assembly ("memory-safe") {
+            slicePointer := slice
+            allocated := mload(0x40)
+        }
+        assertEq(slice, hex"33");
         assertEq(allocated, slicePointer + 0x40);
     }
 
@@ -480,9 +488,10 @@ contract DataContractTest is Test {
     /// code.
     function testContractCreationCodeMemoryAccounting() external pure {
         // Lengths chosen so prefix + data is: below one word (13, 17 bytes),
-        // exactly one word (13 + 19 = 32, padding is a no-op), and a
-        // non-aligned multi-word size (64 < 13 + 60 = 73 < 96).
-        uint256[4] memory lengths = [uint256(0), 4, 19, 60];
+        // exactly one word (13 + 19 = 32, padding is a no-op), one byte past
+        // a word (13 + 20 = 33), and a non-aligned multi-word size
+        // (64 < 13 + 60 = 73 < 96).
+        uint256[5] memory lengths = [uint256(0), 4, 19, 20, 60];
         for (uint256 i = 0; i < lengths.length; i++) {
             bytes memory data = new bytes(lengths[i]);
             uint256 freeMemoryPointerBefore;
@@ -540,7 +549,8 @@ contract DataContractTest is Test {
     /// of the returned bytes. Exact expected pointers per the convention:
     /// empty data allocates just the length word (0x20); a 3-byte payload pads
     /// its data region up to a full word (0x20 + 0x20); a 32-byte payload
-    /// needs no padding (0x20 + 0x20).
+    /// needs no padding (0x20 + 0x20); a 33-byte payload pads up to two words
+    /// (0x20 + 0x40).
     function testReadAllocationRegisteredAligned() external {
         // Empty data: allocation is the zero length word only.
         checkReadAllocation("", 0x20);
@@ -548,6 +558,7 @@ contract DataContractTest is Test {
         checkReadAllocation(hex"aabbcc", 0x20 + 0x20);
         // Exact-multiple data: no extra padding beyond the data itself.
         checkReadAllocation(new bytes(32), 0x20 + 0x20);
+        checkReadAllocation(new bytes(33), 0x20 + 0x40);
     }
 
     function checkReadAllocation(bytes memory data, uint256 expectedAllocation) internal {
