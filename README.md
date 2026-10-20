@@ -11,7 +11,9 @@ Differences from sstore2:
 - Assembly hot path for less gas.
 - No unrelated code shipped — single library.
 - Fuzzed with foundry.
-- Reverts on out-of-range slices instead of silently truncating.
+- Reverts on out-of-range slices. `start`/`length` are truncated to their low 16
+  bits before the bounds check, so values of 65536 or more wrap and only revert
+  if the wrapped slice is out of range.
 - `start`/`length` slicing rather than `start`/`end`.
 - Writes require cancun (MCOPY) on the executing chain; reads do not.
 
