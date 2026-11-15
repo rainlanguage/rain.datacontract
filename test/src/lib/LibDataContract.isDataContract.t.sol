@@ -119,9 +119,7 @@ contract LibDataContractIsDataContractTest is Test {
     }
 
     function testIsDataContractSmallestPayloadTooLarge() external pure {
-        assertFalse(
-            LibDataContract.isDataContract(opcodeTableCreationCode(0, new bytes(uint256(type(uint16).max))))
-        );
+        assertFalse(LibDataContract.isDataContract(opcodeTableCreationCode(0, new bytes(uint256(type(uint16).max)))));
         assertFalse(
             LibDataContract.isDataContract(
                 opcodeTableCreationCode(type(uint16).max, new bytes(uint256(type(uint16).max)))
