@@ -57,8 +57,8 @@ contract LibDataContractIsDataContractTest is Test {
         bytes memory code = LibDataContract.contractCreationCode(hex"aabbccddeeff");
         for (uint256 i = 0; i < PREFIX_BYTES_LENGTH; i++) {
             bytes1 original = code[i];
-            for (uint256 delta = 1; delta < 256; delta++) {
-                code[i] = original ^ bytes1(uint8(delta));
+            for (uint8 delta = type(uint8).max; delta > 0; delta--) {
+                code[i] = original ^ bytes1(delta);
                 assertFalse(LibDataContract.isDataContract(code));
             }
             code[i] = original;
