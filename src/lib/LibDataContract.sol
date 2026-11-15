@@ -85,7 +85,7 @@ library LibDataContract {
             revert DataTooLarge(data.length);
         }
         uint256 prefixBytesLength = PREFIX_BYTES_LENGTH;
-        uint256 basePrefix = BASE_PREFIX;
+        uint256 prefix = creationCodePrefix(data.length);
         assembly ("memory-safe") {
             // allocate output byte array
             creationCode := mload(0x40)
@@ -95,22 +95,42 @@ library LibDataContract {
             let totalLength := add(paddedContentLength, 0x20)
             mstore(0x40, add(creationCode, totalLength))
             mstore(creationCode, contentLength)
-            let prefix :=
-                or(
-                    basePrefix,
-                    shl(
-                        // Length sits 29 bytes from the right
-                        232,
-                        // Length fits in 2 bytes as asserted above.
-                        add(mload(data), 1)
-                    )
-                )
             mstore(add(creationCode, 0x20), prefix)
             // copy data to end of prefix in creation code
             let dataPointer := add(data, 0x20)
             let creationCodeDataPointer := add(creationCode, add(0x20, prefixBytesLength))
             mcopy(creationCodeDataPointer, dataPointer, mload(data))
         }
+    }
+
+    /// True iff `creationCode` is exactly `contractCreationCode` of its own
+    /// payload.
+    /// @param creationCode The code to check.
+    /// @return Whether `creationCode` is data contract creation code.
+    function isDataContract(bytes memory creationCode) internal pure returns (bool) {
+        if (creationCode.length < PREFIX_BYTES_LENGTH) {
+            return false;
+        }
+        uint256 dataLength = creationCode.length - PREFIX_BYTES_LENGTH;
+        if (dataLength >= uint256(type(uint16).max)) {
+            return false;
+        }
+        uint256 prefixBytesLength = PREFIX_BYTES_LENGTH;
+        uint256 prefix = creationCodePrefix(dataLength);
+        bool result;
+        assembly ("memory-safe") {
+            let mask := not(shr(mul(prefixBytesLength, 8), not(0)))
+            result := eq(and(mload(add(creationCode, 0x20)), mask), prefix)
+        }
+        return result;
+    }
+
+    /// The left aligned prefix `contractCreationCode` writes for `dataLength`
+    /// bytes of data. `dataLength` MUST be below `type(uint16).max`.
+    function creationCodePrefix(uint256 dataLength) private pure returns (uint256) {
+        // The embedded length (data plus the prepended zero byte) sits 29 bytes
+        // from the right.
+        return BASE_PREFIX | ((dataLength + 1) << 232);
     }
 
     /// Reads data back from a previously deployed data contract.
